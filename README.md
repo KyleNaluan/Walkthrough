@@ -45,17 +45,17 @@ Add a dependency to one workspace with `npm i <pkg> -w client` (or `-w server`).
 
 Never commit real values. `.env` files are git-ignored. Only `server/.env.example` is tracked.
 
-| Variable                    | Where it's used                                                            |
-| --------------------------- | -------------------------------------------------------------------------- |
-| `SUPABASE_URL`              | Server                                                                     |
-| `SUPABASE_ANON_KEY`         | Server                                                                     |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only. Bypasses row-level security, so never expose it to the client |
-| `PORT`                      | Local dev only (default 3001)                                              |
+| Variable                   | Where it's used                                                            |
+| -------------------------- | -------------------------------------------------------------------------- |
+| `SUPABASE_URL`             | Server                                                                     |
+| `SUPABASE_PUBLISHABLE_KEY` | Server                                                                     |
+| `SUPABASE_SECRET_KEY`      | Server only. Bypasses row-level security, so never expose it to the client |
+| `PORT`                     | Local dev only (default 3001)                                              |
 
 - **Local:** `server/.env`. `server/src/config/env.ts` validates it on startup and lists anything missing.
 - **Production:** set them in Vercel > Project > Settings > Environment Variables (Kyle has access).
 - **CI:** tests run without secrets. Supabase vars are optional when `NODE_ENV=test`.
-- Anything the browser needs must be prefixed `VITE_` and is public. Only the Supabase URL and anon key are ever safe there.
+- Anything the browser needs must be prefixed `VITE_` and is public. Only the Supabase URL and publishable key are ever safe there.
 
 ## Deployment
 

@@ -11,8 +11,8 @@ const envSchema = z.object({
     .default('development'),
   PORT: z.coerce.number().int().positive().default(3001),
   SUPABASE_URL: isTest ? z.string().optional() : z.string().url(),
-  SUPABASE_ANON_KEY: supabaseVar,
-  SUPABASE_SERVICE_ROLE_KEY: supabaseVar,
+  SUPABASE_PUBLISHABLE_KEY: supabaseVar,
+  SUPABASE_SECRET_KEY: supabaseVar,
 });
 
 export type Env = z.infer<typeof envSchema>;
