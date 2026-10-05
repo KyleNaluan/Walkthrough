@@ -27,8 +27,6 @@ cp server/.env.example server/.env   # then fill in the Supabase values
 npm run dev                          # client :5173 + API :3001
 ```
 
-Get the Supabase values from Supabase > Project Settings > API Keys (keys) and Data API (URL). Ask Kyle for an invite to the organization.
-
 ## Scripts (run from the repo root)
 
 | Command                              | Does                                                                |
