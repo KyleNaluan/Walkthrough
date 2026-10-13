@@ -212,7 +212,8 @@ async function main(): Promise<void> {
   if (!process.argv.includes('--yes')) {
     console.error(
       'This deletes ALL data in the shared database and recreates the seed.\n' +
-        'Tell the team first, then run: npm run seed -w server -- --yes',
+        'Tell the team first, then run: npm run seed -w server -- --yes\n' +
+        "(in PowerShell, quote the --: npm run seed -w server '--' --yes)",
     );
     process.exit(1);
   }
