@@ -190,8 +190,11 @@ function printSummary(plan: SeedPlan, storeIds: Map<string, number>): void {
     plan.users.map((user) => ({
       email: user.email,
       role: user.role,
-      stores: plan.stores.filter((store) => store.ownerEmail === user.email)
-        .length,
+      stores:
+        user.role === 'inspector'
+          ? 'all'
+          : plan.stores.filter((store) => store.ownerEmail === user.email)
+              .length,
     })),
   );
   console.log('Stores');
@@ -212,7 +215,8 @@ async function main(): Promise<void> {
   if (!process.argv.includes('--yes')) {
     console.error(
       'This deletes ALL data in the shared database and recreates the seed.\n' +
-        'Tell the team first, then run: npm run seed -w server -- --yes',
+        'Tell the team first, then run: npm run seed -w server -- --yes\n' +
+        "(in PowerShell, quote the --: npm run seed -w server '--' --yes)",
     );
     process.exit(1);
   }
