@@ -5,6 +5,7 @@ import {
   Paper,
   PasswordInput,
   Stack,
+  Text,
   TextInput,
   Title,
 } from '@mantine/core';
@@ -27,6 +28,8 @@ export function LoginPage() {
   const form = useForm({
     initialValues: {email: '', password: ''},
     validate: {email: required('Email'), password: required('Password')},
+    // The last error no longer applies once the user edits a field.
+    onValuesChange: () => setError(null),
   });
 
   if (user) return <Navigate to={landingPathFor(user.role)} replace />;
@@ -46,7 +49,15 @@ export function LoginPage() {
 
   return (
     <Container component="main" size={420} py="xl">
-      <Title order={1} ta="center" mb="lg">
+      <Stack gap={4} align="center" mb="lg">
+        <Text fw={700} size="xl" c="blue">
+          Walkthrough
+        </Text>
+        <Text c="dimmed" ta="center">
+          Inspections, from finding to fix
+        </Text>
+      </Stack>
+      <Title order={1} size="h2" ta="center" mb="md">
         Log in
       </Title>
       <Paper withBorder p="lg">
@@ -57,6 +68,7 @@ export function LoginPage() {
               type="email"
               autoComplete="username"
               withAsterisk
+              autoFocus
               {...form.getInputProps('email')}
             />
             <PasswordInput
