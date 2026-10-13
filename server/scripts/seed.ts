@@ -190,8 +190,11 @@ function printSummary(plan: SeedPlan, storeIds: Map<string, number>): void {
     plan.users.map((user) => ({
       email: user.email,
       role: user.role,
-      stores: plan.stores.filter((store) => store.ownerEmail === user.email)
-        .length,
+      stores:
+        user.role === 'inspector'
+          ? 'all'
+          : plan.stores.filter((store) => store.ownerEmail === user.email)
+              .length,
     })),
   );
   console.log('Stores');
