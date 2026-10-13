@@ -1,4 +1,5 @@
-import {Center, Image, Text} from '@mantine/core';
+import {Center, Image, Stack, Text} from '@mantine/core';
+import {IconPhoto, IconPhotoOff} from '@tabler/icons-react';
 import {useEffect, useEffectEvent, useState} from 'react';
 
 /**
@@ -28,11 +29,16 @@ export function Photo({src, alt}: {src: () => Promise<string>; alt: string}) {
         role="img"
         aria-label={alt}
         bg="gray.1"
-        style={{aspectRatio: '4 / 3', borderRadius: 'var(--mantine-radius-md)'}}
+        style={{
+          aspectRatio: '4 / 3',
+          borderRadius: 'var(--mantine-radius-sm)',
+          border: '1px dashed var(--mantine-color-gray-4)',
+        }}
       >
-        <Text c="dimmed">
-          {failed ? 'Photo unavailable' : 'Loading photo…'}
-        </Text>
+        <Stack gap={4} align="center" c="dimmed">
+          {failed ? <IconPhotoOff size={28} /> : <IconPhoto size={28} />}
+          <Text fz="sm">{failed ? 'Photo unavailable' : 'Loading photo…'}</Text>
+        </Stack>
       </Center>
     );
   }
@@ -42,7 +48,7 @@ export function Photo({src, alt}: {src: () => Promise<string>; alt: string}) {
       src={url}
       alt={alt}
       loading="lazy"
-      radius="md"
+      radius="sm"
       onError={() => setFailed(true)}
     />
   );
