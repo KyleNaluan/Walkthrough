@@ -49,11 +49,43 @@ Never commit real values. `.env` files are git-ignored. Only `server/.env.exampl
 | `SUPABASE_PUBLISHABLE_KEY` | Server                                                                     |
 | `SUPABASE_SECRET_KEY`      | Server only. Bypasses row-level security, so never expose it to the client |
 | `PORT`                     | Local dev only (default 3001)                                              |
+| `SEED_PASSWORD`            | `npm run seed` only. Password for every seed account, shared privately     |
 
 - **Local:** `server/.env`. `server/src/config/env.ts` validates it on startup and lists anything missing.
 - **Production:** set them in Vercel > Project > Settings > Environment Variables.
 - **CI:** tests run without secrets. Supabase vars are optional when `NODE_ENV=test`.
 - Anything the browser needs must be prefixed `VITE_` and is public. Only the Supabase URL and publishable key are ever safe there.
+
+## Database and seed data
+
+The schema lives in `database/`, as numbered scripts that each run **once** in the Supabase SQL editor, in order:
+
+- `001_schema.sql`: tables, value lists and access settings. It has already run on the shared project.
+- `002_status_functions.sql`: the `submit_fix` and `review_fix` functions that change a ticket's status. Run it once, after `001`.
+
+A later change to the database gets its own new script (`003_...`). Never edit a script that has already run.
+
+To load the test data, put `SEED_PASSWORD` in `server/.env`, then run:
+
+```sh
+npm run seed -w server -- --yes
+```
+
+> **Warning:** the seed **deletes every row in the shared database** and every `@walkthrough.test` account, then recreates them. Only one person runs it at a time, and they announce it in the group chat first.
+
+It creates these accounts, all with the password in `SEED_PASSWORD`:
+
+| Email                         | Role        | Stores |
+| ----------------------------- | ----------- | ------ |
+| `inspector1@walkthrough.test` | Inspector   | All    |
+| `inspector2@walkthrough.test` | Inspector   | All    |
+| `owner1@walkthrough.test`     | Store owner | 2      |
+| `owner2@walkthrough.test`     | Store owner | 1      |
+| `owner3@walkthrough.test`     | Store owner | 2      |
+
+The seed also adds inspections, and tickets in every status, including an overdue ticket. One store has no inspections.
+
+The free Supabase project pauses after about a week without use. If the app can't reach the database, resume the project from the Supabase dashboard. Check it before a demo.
 
 ## Deployment
 
