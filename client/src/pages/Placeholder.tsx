@@ -1,3 +1,4 @@
+import {Stack, Text, Title} from '@mantine/core';
 import type {ReactNode} from 'react';
 
 /** A page heading and a note naming the story that builds the page. */
@@ -11,10 +12,10 @@ export function Placeholder({
   children?: ReactNode;
 }) {
   return (
-    <>
-      <h1>{title}</h1>
+    <Stack>
+      <Title order={1}>{title}</Title>
       {children}
-      <p className="note">Placeholder. Built in {story}.</p>
-    </>
+      <Text c="dimmed">Placeholder. Built in {story}.</Text>
+    </Stack>
   );
 }

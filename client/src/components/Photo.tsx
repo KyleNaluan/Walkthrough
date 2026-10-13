@@ -1,3 +1,4 @@
+import {Center, Image, Text} from '@mantine/core';
 import {useEffect, useEffectEvent, useState} from 'react';
 
 /**
@@ -23,13 +24,26 @@ export function Photo({src, alt}: {src: () => Promise<string>; alt: string}) {
 
   if (failed || !url) {
     return (
-      <div className="photo-placeholder" role="img" aria-label={alt}>
-        {failed ? 'Photo unavailable' : 'Loading photo…'}
-      </div>
+      <Center
+        role="img"
+        aria-label={alt}
+        bg="gray.1"
+        style={{aspectRatio: '4 / 3', borderRadius: 'var(--mantine-radius-md)'}}
+      >
+        <Text c="dimmed">
+          {failed ? 'Photo unavailable' : 'Loading photo…'}
+        </Text>
+      </Center>
     );
   }
   // The link expires after 5 minutes, so a failed load shows the placeholder.
   return (
-    <img src={url} alt={alt} loading="lazy" onError={() => setFailed(true)} />
+    <Image
+      src={url}
+      alt={alt}
+      loading="lazy"
+      radius="md"
+      onError={() => setFailed(true)}
+    />
   );
 }
