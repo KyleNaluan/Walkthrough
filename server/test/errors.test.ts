@@ -18,6 +18,17 @@ describe('toHttpError', () => {
     expect(mapped).toMatchObject({status, message});
   });
 
+  it('maps a refused status step (P0001) to 409 with its message', () => {
+    const mapped = toHttpError({
+      code: 'P0001',
+      message: 'This ticket is not waiting for a fix',
+    });
+    expect(mapped).toMatchObject({
+      status: 409,
+      message: 'This ticket is not waiting for a fix',
+    });
+  });
+
   it('returns undefined for anything else', () => {
     expect(toHttpError({code: 'XX000'})).toBeUndefined();
     expect(toHttpError(new Error('boom'))).toBeUndefined();

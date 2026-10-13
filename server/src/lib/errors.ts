@@ -27,6 +27,11 @@ export function toHttpError(err: unknown): HttpError | undefined {
   if (typeof err !== 'object' || err === null || !('code' in err)) {
     return undefined;
   }
+  // A status step refused by database/002_status_functions.sql; its message
+  // is written for the user.
+  if (err.code === 'P0001' && 'message' in err) {
+    return new HttpError(409, String(err.message));
+  }
   const mapped =
     typeof err.code === 'string' ? postgresErrors[err.code] : undefined;
   return mapped && new HttpError(...mapped);
