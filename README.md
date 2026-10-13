@@ -17,6 +17,32 @@ ASWE Group 2 (Health Coders), Fall 2026. A mobile-first web app where food and b
 
 In development, Vite proxies `/api` to the Express server. In production both run on the same Vercel domain, so no CORS setup is needed.
 
+## UI style
+
+The client looks like an official inspection record. Build every page from Mantine components and these shared pieces instead of writing CSS.
+
+- **Theme** (`client/src/theme.ts`):
+  - **Colors:** civic navy (`navy`) is the main color; pages are paper grey, cards are white.
+  - **Shape:** corners are only slightly rounded.
+  - **Fonts:** Public Sans for text, IBM Plex Mono (`ff="monospace"`) for record numbers and dates.
+  - **Sizes:** inputs and buttons are 42px tall so they are easy to tap.
+- **Status and severity** (`client/src/status.ts`): each ticket status and severity has one label and one colour. `recordNumber('T', 7)` gives `T-0007`.
+
+  | Status                  | Colour | Severity | Colour          |
+  | ----------------------- | ------ | -------- | --------------- |
+  | Open                    | orange | Low      | yellow, outline |
+  | Pending review          | navy   | Medium   | orange, outline |
+  | Changes requested       | red    | High     | red, filled     |
+  | Re-inspection scheduled | grape  | Overdue  | red, filled     |
+  | Resolved                | green  |          |                 |
+
+- **Components** (`client/src/components/ui/`):
+  - `PageHeader` puts a small mono line (record number, store) above the page title, with actions on the right.
+  - `Section` is a labelled card, like a section of a paper form.
+  - `StatusBadge`, `SeverityBadge` and `OverdueBadge` show the colours above.
+  - `Emblem` is the app's mark.
+- **Icons:** `@tabler/icons-react`.
+
 ## Setup
 
 Requires Node 22 (see `.nvmrc`).
