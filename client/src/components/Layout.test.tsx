@@ -6,10 +6,11 @@ import {renderWithAuth} from '../test/renderWithAuth';
 import {owner} from '../test/users';
 
 describe('Layout', () => {
-  it("shows the app name, the user's name and the nav", () => {
+  it("shows the app name, the user's name and role, and the nav", () => {
     renderWithAuth(<AppRoutes />, {user: owner, route: '/stores'});
     expect(screen.getByText('Walkthrough')).toBeInTheDocument();
     expect(screen.getByText('Sam Carter')).toBeInTheDocument();
+    expect(screen.getByText('Store owner')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Stores'})).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Tickets'})).toBeInTheDocument();
   });
