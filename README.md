@@ -68,7 +68,8 @@ A later change to the database gets its own new script (`003_...`). Never edit a
 To load the test data, put `SEED_PASSWORD` in `server/.env`, then run:
 
 ```sh
-npm run seed -w server -- --yes
+npm run seed -w server -- --yes     # bash, Git Bash, macOS
+npm run seed -w server '--' --yes   # PowerShell, which drops a bare --
 ```
 
 > **Warning:** the seed **deletes every row in the shared database** and every `@walkthrough.test` account, then recreates them. Only one person runs it at a time, and they announce it in the group chat first.
