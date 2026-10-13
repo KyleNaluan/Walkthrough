@@ -51,14 +51,13 @@ Never commit real values. `.env` files are git-ignored. Only `server/.env.exampl
 | `PORT`                     | Local dev only (default 3001)                                              |
 
 - **Local:** `server/.env`. `server/src/config/env.ts` validates it on startup and lists anything missing.
-- **Production:** set them in Vercel > Project > Settings > Environment Variables (Kyle has access).
+- **Production:** set them in Vercel > Project > Settings > Environment Variables.
 - **CI:** tests run without secrets. Supabase vars are optional when `NODE_ENV=test`.
 - Anything the browser needs must be prefixed `VITE_` and is public. Only the Supabase URL and publishable key are ever safe there.
 
 ## Deployment
 
-Vercel is connected through the GitHub app. Every merge to `main` deploys to the `.vercel.app` site, and PRs get preview deploys. Only Kyle can see Vercel logs, so reproduce failures locally:
-
+Vercel is connected through the GitHub app. Every merge to `main` deploys to the `.vercel.app` site, and PRs get preview deploys.
 ```sh
 npm ci && npm run build   # same install + build commands Vercel runs
 ```
