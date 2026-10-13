@@ -1,4 +1,9 @@
-import express, {type NextFunction, type Request, type Response} from 'express';
+import express from 'express';
+import {errorHandler} from './lib/errors.js';
+import {authRouter} from './routes/auth.js';
+import {inspectionsRouter} from './routes/inspections.js';
+import {storesRouter} from './routes/stores.js';
+import {ticketsRouter} from './routes/tickets.js';
 
 /**
  * The Express app, without listen(). Shared by local dev (src/index.ts),
@@ -13,11 +18,10 @@ app.get('/api/health', (_req, res) => {
   res.json({status: 'ok'});
 });
 
+app.use('/api', authRouter, storesRouter, inspectionsRouter, ticketsRouter);
+
 app.use('/api', (_req, res) => {
   res.status(404).json({error: 'Not found'});
 });
 
-app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
-  console.error(err);
-  res.status(500).json({error: 'Internal server error'});
-});
+app.use(errorHandler);

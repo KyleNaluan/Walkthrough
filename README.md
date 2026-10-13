@@ -58,6 +58,7 @@ Never commit real values. `.env` files are git-ignored. Only `server/.env.exampl
 ## Deployment
 
 Vercel is connected through the GitHub app. Every merge to `main` deploys to the `.vercel.app` site, and PRs get preview deploys.
+
 ```sh
 npm ci && npm run build   # same install + build commands Vercel runs
 ```
