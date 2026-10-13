@@ -6,8 +6,8 @@ import {renderWithAuth} from '../test/renderWithAuth';
 import {inspector} from '../test/users';
 
 function submit(email: string, password: string) {
-  fireEvent.change(screen.getByLabelText('Email'), {target: {value: email}});
-  fireEvent.change(screen.getByLabelText('Password'), {
+  fireEvent.change(screen.getByLabelText(/^Email/), {target: {value: email}});
+  fireEvent.change(screen.getByLabelText(/^Password/), {
     target: {value: password},
   });
   fireEvent.click(screen.getByRole('button', {name: 'Log in'}));
@@ -50,6 +50,21 @@ describe('LoginPage', () => {
       'Email or password is incorrect',
     );
   });
+
+  it.each([
+    ['', 'secret', 'Email is required'],
+    ['a@b.test', '', 'Password is required'],
+  ])(
+    'marks a blank field and sends nothing: %j / %j',
+    (email, password, message) => {
+      const fetch = vi.fn();
+      vi.stubGlobal('fetch', fetch);
+      renderWithAuth(<AppRoutes />, {route: '/login'});
+      submit(email, password);
+      expect(screen.getByText(message)).toBeInTheDocument();
+      expect(fetch).not.toHaveBeenCalled();
+    },
+  );
 
   it('sends a logged-in user to their landing page', () => {
     renderWithAuth(<AppRoutes />, {user: inspector, route: '/login'});

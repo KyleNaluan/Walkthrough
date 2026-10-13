@@ -2,7 +2,7 @@
 
 ASWE Group 2 (Health Coders), Fall 2026. A mobile-first web app where food and beverage inspectors record findings and store owners submit fixes.
 
-**Stack:** TypeScript · React (Vite) · Node/Express · PostgreSQL on Supabase · hosted on Vercel.
+**Stack:** TypeScript · React (Vite) with Mantine UI · Node/Express · PostgreSQL on Supabase · hosted on Vercel.
 **Tests:** Vitest, SuperTest (API), React Testing Library (UI). **Style:** Google TypeScript Style Guide (ESLint + Prettier).
 
 ## Layout
