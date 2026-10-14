@@ -6,13 +6,18 @@ import {HttpError} from '../lib/errors.js';
 // Adds req.user; also pulls the declaration into `tsc -p api`.
 import type {} from '../types/express.js';
 
+/** The token from the `Authorization: Bearer` header, if any. */
+export function bearerToken(req: Request): string | undefined {
+  return /^Bearer (.+)$/i.exec(req.get('Authorization') ?? '')?.[1];
+}
+
 /** Sets req.user from the `Authorization: Bearer` token, or sends a 401. */
 export async function requireUser(
   req: Request,
   _res: Response,
   next: NextFunction,
 ): Promise<void> {
-  const token = /^Bearer (.+)$/i.exec(req.get('Authorization') ?? '')?.[1];
+  const token = bearerToken(req);
   const userId = token ? await verifyToken(token) : null;
   const user = userId ? await users.getUserById(userId) : null;
   if (!user) throw new HttpError(401, 'Not logged in');
