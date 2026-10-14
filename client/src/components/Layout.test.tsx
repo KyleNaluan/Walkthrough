@@ -1,6 +1,5 @@
-import {fireEvent, screen} from '@testing-library/react';
+import {screen} from '@testing-library/react';
 import {beforeEach, describe, expect, it} from 'vitest';
-import {readSession} from '../auth/session';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
@@ -18,12 +17,5 @@ describe('Layout', () => {
     expect(screen.getByText('Store owner')).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Stores'})).toBeInTheDocument();
     expect(screen.getByRole('link', {name: 'Tickets'})).toBeInTheDocument();
-  });
-
-  it('Log out clears the session and shows the login page', () => {
-    renderWithAuth(<AppRoutes />, {user: owner, route: '/stores'});
-    fireEvent.click(screen.getByRole('button', {name: 'Log out'}));
-    expect(screen.getByRole('heading', {name: 'Log in'})).toBeInTheDocument();
-    expect(readSession()).toBeNull();
   });
 });

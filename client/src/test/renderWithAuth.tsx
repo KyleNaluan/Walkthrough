@@ -23,15 +23,20 @@ export function renderWithTheme(ui: ReactElement) {
 
 /**
  * Renders `ui` (usually <AppRoutes />) at `route`, already logged in as
- * `user`, or logged out when `user` is omitted.
+ * `user`, or logged out when `user` is omitted. `history` lists earlier
+ * pages, so Back has somewhere to go.
  */
 export function renderWithAuth(
   ui: ReactElement,
-  {user, route = '/'}: {user?: User; route?: string} = {},
+  {
+    user,
+    route = '/',
+    history = [],
+  }: {user?: User; route?: string; history?: string[]} = {},
 ) {
   if (user) loginAs(user);
   return renderWithTheme(
-    <MemoryRouter initialEntries={[route]}>
+    <MemoryRouter initialEntries={[...history, route]}>
       <AuthProvider>{ui}</AuthProvider>
     </MemoryRouter>,
   );
