@@ -57,12 +57,6 @@ describe('GET /api/stores/:storeId', () => {
     expect(res.body).toEqual(stores[2]);
   });
 
-  it("refuses another owner's store", async () => {
-    const res = await request(app).get('/api/stores/3').set(asUser('ownerA'));
-    expect(res.status).toBe(403);
-    expect(res.body).toEqual({error: 'Access denied'});
-  });
-
   it('sends 404 for a store that does not exist', async () => {
     const res = await request(app)
       .get('/api/stores/99')
@@ -77,5 +71,42 @@ describe('GET /api/stores/:storeId', () => {
       .set(asUser('inspector'));
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('Invalid ID');
+  });
+});
+
+describe('store owners (story 3)', () => {
+  it('shows an owner their own store (AC 3.1)', async () => {
+    const res = await request(app).get('/api/stores/1').set(asUser('ownerA'));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(stores[0]);
+  });
+
+  it("refuses another owner's store and returns none of its data (AC 3.3)", async () => {
+    const res = await request(app).get('/api/stores/3').set(asUser('ownerA'));
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({error: 'Access denied'});
+  });
+
+  it("leaves another owner's stores out of an owner's list", async () => {
+    const res = await request(app).get('/api/stores').set(asUser('ownerA'));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([stores[0], stores[1]]);
+  });
+
+  it.each(['/api/stores', '/api/stores/1'])(
+    'refuses %s with no login and returns no store data (AC 3.4)',
+    async (path) => {
+      const res = await request(app).get(path);
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({error: 'Not logged in'});
+    },
+  );
+
+  it('refuses an invalid token with no store data (AC 3.4)', async () => {
+    const res = await request(app)
+      .get('/api/stores/1')
+      .set('Authorization', 'Bearer not-a-real-token');
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({error: 'Not logged in'});
   });
 });
