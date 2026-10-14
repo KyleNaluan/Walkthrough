@@ -1,11 +1,16 @@
 import {fireEvent, screen} from '@testing-library/react';
-import {describe, expect, it} from 'vitest';
+import {beforeEach, describe, expect, it} from 'vitest';
 import {readSession} from '../auth/session';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
+import {stubApi} from '../test/stubApi';
 import {owner} from '../test/users';
 
 describe('Layout', () => {
+  beforeEach(() => {
+    stubApi({'/api/stores': []});
+  });
+
   it("shows the app name, the user's name and role, and the nav", () => {
     renderWithAuth(<AppRoutes />, {user: owner, route: '/stores'});
     expect(screen.getByText('Walkthrough')).toBeInTheDocument();

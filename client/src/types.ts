@@ -15,3 +15,10 @@ export interface User {
   email: string;
   role: Role;
 }
+
+export interface Store {
+  id: number;
+  name: string;
+  address: string;
+  ownerId: string;
+}
