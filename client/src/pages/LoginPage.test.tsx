@@ -3,15 +3,16 @@ import {describe, expect, it, vi} from 'vitest';
 import {readSession} from '../auth/session';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
+import {stubApi} from '../test/stubApi';
 import {inspector, owner} from '../test/users';
 
 /** Answers the login request with the user, as the server does. */
 function stubLoginSuccess(user: typeof inspector) {
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockResolvedValue(Response.json({token: 'abc', expiresAt, user})),
-  );
+  stubApi({
+    '/api/auth/login': {token: 'abc', expiresAt, user},
+    '/api/stores': [],
+  });
   return expiresAt;
 }
 
@@ -124,6 +125,7 @@ describe('LoginPage', () => {
   );
 
   it('sends a logged-in user to their landing page', () => {
+    stubApi({'/api/stores': []});
     renderWithAuth(<AppRoutes />, {user: inspector, route: '/login'});
     expect(screen.getByRole('heading', {name: 'Stores'})).toBeInTheDocument();
   });
