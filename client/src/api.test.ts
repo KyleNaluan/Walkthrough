@@ -74,6 +74,17 @@ describe('api', () => {
     setOnUnauthorized(undefined);
   });
 
+  it('does not treat a refused logout as a lost session', async () => {
+    const onUnauthorized = vi.fn();
+    setOnUnauthorized(onUnauthorized);
+    stubFetch(Response.json({error: 'Not logged in'}, {status: 401}));
+    await expect(apiPost('/api/auth/logout', {})).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(onUnauthorized).not.toHaveBeenCalled();
+    setOnUnauthorized(undefined);
+  });
+
   it('does not treat a failed login as a lost session', async () => {
     const onUnauthorized = vi.fn();
     setOnUnauthorized(onUnauthorized);

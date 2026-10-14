@@ -8,6 +8,7 @@ vi.mock('../src/lib/auth.js', () => ({
     return key in users ? users[key as UserKey].id : null;
   }),
   signIn: vi.fn(async () => null),
+  signOut: vi.fn(async () => {}),
 }));
 
 vi.mock('../src/db/users.js', () => ({

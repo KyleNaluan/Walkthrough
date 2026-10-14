@@ -17,6 +17,16 @@ export async function verifyToken(token: string): Promise<string | null> {
 }
 
 /**
+ * Ends the Supabase session an access token belongs to, so the token no
+ * longer passes verifyToken. Other devices stay logged in.
+ */
+export async function signOut(token: string): Promise<void> {
+  const {error} = await getSupabaseAdmin().auth.admin.signOut(token, 'local');
+  // A token whose session already ended has nothing left to revoke.
+  if (error && !(isAuthApiError(error) && error.status < 500)) throw error;
+}
+
+/**
  * Checks an email and password with Supabase Auth. Returns null when they
  * are rejected, whether the email is unknown or the password is wrong.
  */

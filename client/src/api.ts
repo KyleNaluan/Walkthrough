@@ -36,8 +36,9 @@ async function request<T>(
       error?: string;
       fields?: Record<string, string>;
     };
-    // A logged-in user whose session ended; a failed login is just an error.
-    if (res.status === 401 && path !== '/api/auth/login') {
+    // A logged-in user whose session ended. A failed login is just an error,
+    // and a refused logout means the session had already ended.
+    if (res.status === 401 && !path.startsWith('/api/auth/')) {
       clearSession();
       onUnauthorized?.();
     }

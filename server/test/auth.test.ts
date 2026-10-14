@@ -1,7 +1,7 @@
 import request from 'supertest';
 import {describe, expect, it, vi} from 'vitest';
 import {app} from '../src/app.js';
-import {signIn} from '../src/lib/auth.js';
+import {signIn, signOut} from '../src/lib/auth.js';
 import {asUser} from './helpers/auth.js';
 import {users} from './helpers/users.js';
 
@@ -99,6 +99,23 @@ describe('sign-up (AC 1.8)', () => {
       expect(res.body).toEqual({error: 'Not found'});
     },
   );
+});
+
+describe('POST /api/auth/logout', () => {
+  it('revokes the token it was sent (AC 4.1)', async () => {
+    const res = await request(app)
+      .post('/api/auth/logout')
+      .set(asUser('ownerA'));
+    expect(res.status).toBe(204);
+    expect(signOut).toHaveBeenCalledWith('test-ownerA');
+  });
+
+  it('refuses a request with no token and revokes nothing', async () => {
+    vi.mocked(signOut).mockClear();
+    const res = await request(app).post('/api/auth/logout');
+    expect(res.status).toBe(401);
+    expect(signOut).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /api/me', () => {

@@ -21,18 +21,26 @@ export function AuthProvider({children}: {children: ReactNode}) {
     setUser(session.user);
   }, []);
 
-  // Story 4 adds anything more that logging out needs.
-  const logout = useCallback(() => {
+  /** Forgets the session in this tab and shows the login page. */
+  const endSession = useCallback(() => {
     clearSession();
     setUser(null);
     navigate('/login', {replace: true});
   }, [navigate]);
 
+  // Asks the server to revoke the token, so a copy of it stops working, but
+  // doesn't wait: the session ends here even if the phone is offline. The
+  // request reads the token before endSession clears it.
+  const logout = useCallback(() => {
+    apiPost('/api/auth/logout', {}).catch(() => {});
+    endSession();
+  }, [endSession]);
+
   // Any API call answered 401 means the session is over.
   useEffect(() => {
-    setOnUnauthorized(logout);
+    setOnUnauthorized(endSession);
     return () => setOnUnauthorized(undefined);
-  }, [logout]);
+  }, [endSession]);
 
   const auth = useMemo<Auth>(
     () => ({user, login, logout}),

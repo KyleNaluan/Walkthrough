@@ -6,7 +6,7 @@ export interface Auth {
   user: User | null;
   /** Logs in; throws an ApiError if the server refuses. */
   login(email: string, password: string): Promise<void>;
-  /** Forgets the session and goes to the login page. */
+  /** Revokes the token, forgets the session and goes to the login page. */
   logout(): void;
 }
 
