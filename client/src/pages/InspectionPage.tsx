@@ -1,9 +1,11 @@
-import {Anchor, Group, Paper, Text} from '@mantine/core';
-import {IconArrowLeft} from '@tabler/icons-react';
+import {Anchor, Box, Group, Paper, Text} from '@mantine/core';
+import {IconArrowLeft, IconPhoto} from '@tabler/icons-react';
 import {useState} from 'react';
 import {Link, useParams} from 'react-router';
+import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {FindingForm} from '../components/FindingForm';
+import {Photo} from '../components/Photo';
 import {SeverityBadge, StatusBadge} from '../components/ui/Badges';
 import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
@@ -27,6 +29,8 @@ const deadlineFormat = new Intl.DateTimeFormat('en-US', {
 });
 
 function FindingRow({ticket}: {ticket: Ticket}) {
+  // The photo link is fetched only when the finding is opened (AC 7.1, 7.2).
+  const [open, setOpen] = useState(false);
   return (
     <Paper withBorder p="sm">
       <Group gap="xs" mb={4}>
@@ -40,13 +44,38 @@ function FindingRow({ticket}: {ticket: Ticket}) {
       <Text fz="sm" c="dimmed">
         Due {deadlineFormat.format(new Date(ticket.deadline))}
       </Text>
+      <Anchor
+        component="button"
+        type="button"
+        fz="sm"
+        mt="xs"
+        display="block"
+        onClick={() => setOpen((shown) => !shown)}
+      >
+        <Group gap={4} component="span">
+          <IconPhoto size={16} />
+          {open ? 'Hide photo' : 'Show photo'}
+        </Group>
+      </Anchor>
+      {open && (
+        <Box maw={360} mt="xs">
+          <Photo
+            src={() =>
+              apiGet<{url: string}>(`/api/tickets/${ticket.id}/photo`).then(
+                (body) => body.url,
+              )
+            }
+            alt={ticket.description}
+          />
+        </Box>
+      )}
     </Paper>
   );
 }
 
 /**
  * One inspection: its store, inspector and start time (story 5), and its
- * findings (story 6).
+ * findings (story 6) with their photos (story 7).
  */
 export function InspectionPage() {
   const {inspectionId} = useParams();

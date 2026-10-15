@@ -65,6 +65,25 @@ function saveFinding({
   fireEvent.click(screen.getByRole('button', {name: 'Save finding'}));
 }
 
+/** Opens inspection 7 with ticket 12, the server answering its photo link. */
+async function openWithFinding(
+  user: typeof inspector,
+  photoLink: unknown = {url: 'https://example.test/signed.png'},
+) {
+  const fetch = stubApi({
+    '/api/inspections/7': {...inspection, tickets: [ticket]},
+    '/api/tickets/12/photo': photoLink,
+  });
+  renderWithAuth(<AppRoutes />, {user, route: '/inspections/7'});
+  await screen.findByRole('button', {name: 'Show photo'});
+  return fetch;
+}
+
+/** The photo links the page asked the server for. */
+function photoRequests(fetch: ReturnType<typeof stubApi>) {
+  return fetch.mock.calls.filter(([path]) => path === '/api/tickets/12/photo');
+}
+
 /** The findings the page sent to the server. */
 function sentFindings(fetch: ReturnType<typeof stubApi>) {
   return fetch.mock.calls
@@ -336,5 +355,28 @@ describe('InspectionPage', () => {
     saveFinding();
     expect(await screen.findByText('Photo is too large')).toBeInTheDocument();
     expect(sentFindings(fetch)).toHaveLength(0);
+  });
+
+  it("shows a finding's photo when the inspector opens it (AC 7.1)", async () => {
+    const fetch = await openWithFinding(inspector);
+    expect(photoRequests(fetch)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', {name: 'Show photo'}));
+    expect(
+      await screen.findByAltText('Raw chicken stored above salad'),
+    ).toHaveAttribute('src', 'https://example.test/signed.png');
+    expect(photoRequests(fetch)).toHaveLength(1);
+    expect(
+      screen.getByRole('button', {name: 'Hide photo'}),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a finding's photo when the store's owner opens it (AC 7.2)", async () => {
+    const fetch = await openWithFinding(owner);
+    expect(photoRequests(fetch)).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', {name: 'Show photo'}));
+    expect(
+      await screen.findByAltText('Raw chicken stored above salad'),
+    ).toHaveAttribute('src', 'https://example.test/signed.png');
+    expect(photoRequests(fetch)).toHaveLength(1);
   });
 });
