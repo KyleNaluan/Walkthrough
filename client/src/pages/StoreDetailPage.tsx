@@ -1,23 +1,13 @@
-import {Anchor, Group, Text} from '@mantine/core';
+import {Anchor, Group} from '@mantine/core';
 import {IconArrowLeft} from '@tabler/icons-react';
 import {Link, useParams} from 'react-router';
+import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
 import {PageHeader} from '../components/ui/PageHeader';
 import {Section} from '../components/ui/Section';
 import {useApi} from '../lib/useApi';
 import {recordNumber} from '../status';
 import type {Store} from '../types';
-
-function Field({label, value}: {label: string; value: string}) {
-  return (
-    <div>
-      <Text fz="xs" tt="uppercase" c="dimmed" fw={600} lts={0.5}>
-        {label}
-      </Text>
-      <Text>{value}</Text>
-    </div>
-  );
-}
 
 /**
  * One store. The server checks access: inspectors open any store (story 2),
