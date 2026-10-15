@@ -168,6 +168,21 @@ describe('InspectionPage', () => {
     expect(screen.getByLabelText(/^Description/)).toHaveValue('');
   });
 
+  it('locks the form while a finding is saving (AC 6.1)', async () => {
+    let resized!: (file: File) => void;
+    vi.mocked(resizeImage).mockReturnValueOnce(
+      new Promise((resolve) => (resized = resolve)),
+    );
+    await openAsInspector({
+      '/api/inspections/7/tickets': Response.json(ticket, {status: 201}),
+    });
+    saveFinding();
+    expect(screen.getByLabelText(/^Description/)).toBeDisabled();
+    resized(photo);
+    expect(await screen.findByText('T-0012')).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Description/)).toBeEnabled();
+  });
+
   it('lists both findings after a second one is recorded (AC 6.2)', async () => {
     const saved = [
       ticket,

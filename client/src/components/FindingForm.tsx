@@ -106,11 +106,13 @@ export function FindingForm({
           label="Description"
           withAsterisk
           rows={3}
+          disabled={busy}
           {...form.getInputProps('description')}
         />
         <Radio.Group
           label="Severity"
           withAsterisk
+          disabled={busy}
           {...form.getInputProps('severity')}
         >
           <Group mt={4}>
@@ -125,6 +127,7 @@ export function FindingForm({
           placeholder="YYYY-MM-DD"
           dateParser={parseDeadline}
           withAsterisk
+          disabled={busy}
           {...form.getInputProps('deadline')}
         />
         <FileInput
@@ -132,6 +135,7 @@ export function FindingForm({
           placeholder="Choose a JPEG or PNG"
           accept="image/jpeg,image/png"
           withAsterisk
+          disabled={busy}
           {...form.getInputProps('photo')}
         />
         {error && (
