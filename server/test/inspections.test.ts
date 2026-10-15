@@ -122,6 +122,18 @@ describe('GET /api/inspections/:inspectionId', () => {
     });
   });
 
+  it("opens an inspection of the owner's own store (AC 5.1)", async () => {
+    const res = await request(app)
+      .get('/api/inspections/7')
+      .set(asUser('ownerA'));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ...inspection,
+      store: stores[0],
+      inspector: {firstName: 'Ina', lastName: 'Spector'},
+    });
+  });
+
   it('refuses to open an inspection when not logged in (AC 5.4)', async () => {
     const res = await request(app).get('/api/inspections/7');
     expect(res.status).toBe(401);
