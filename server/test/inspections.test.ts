@@ -11,12 +11,26 @@ vi.mock('../src/db/inspections.js');
 
 const startedAt = '2026-10-14T14:05:00.000Z';
 
+/** Inspection 7, started by the inspector at store 1. */
+const inspection = {
+  id: 7,
+  startedAt,
+  storeId: 1,
+  inspectorId: users.inspector.id,
+};
+
 beforeEach(() => {
   vi.mocked(storesDb.getStore).mockImplementation(
     async (id) => stores.find((store) => store.id === id) ?? null,
   );
+  vi.mocked(storesDb.storeIdForInspection).mockImplementation(async (id) =>
+    id === inspection.id ? inspection.storeId : null,
+  );
   vi.mocked(inspectionsDb.createInspection).mockImplementation(
     async (storeId, inspectorId) => ({id: 7, startedAt, storeId, inspectorId}),
+  );
+  vi.mocked(inspectionsDb.getInspection).mockImplementation(async (id) =>
+    id === inspection.id ? inspection : null,
   );
 });
 
@@ -93,4 +107,40 @@ describe('POST /api/stores/:storeId/inspections', () => {
       expect(inspectionsDb.createInspection).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('GET /api/inspections/:inspectionId', () => {
+  it('opens an inspection with its store, inspector and start time (AC 5.1)', async () => {
+    const res = await request(app)
+      .get('/api/inspections/7')
+      .set(asUser('inspector2'));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ...inspection,
+      store: stores[0],
+      inspector: {firstName: 'Ina', lastName: 'Spector'},
+    });
+  });
+
+  it('refuses to open an inspection when not logged in (AC 5.4)', async () => {
+    const res = await request(app).get('/api/inspections/7');
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({error: 'Not logged in'});
+  });
+
+  it('sends 404 for an inspection that does not exist', async () => {
+    const res = await request(app)
+      .get('/api/inspections/99')
+      .set(asUser('inspector'));
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({error: 'Inspection not found'});
+  });
+
+  it("refuses an inspection of another owner's store", async () => {
+    const res = await request(app)
+      .get('/api/inspections/7')
+      .set(asUser('ownerB'));
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({error: 'Access denied'});
+  });
 });
