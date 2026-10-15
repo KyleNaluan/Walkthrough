@@ -117,6 +117,7 @@ beforeEach(() => {
       inspectionId,
     }),
   );
+  vi.mocked(ticketsDb.listTicketsForInspection).mockResolvedValue([]);
 });
 
 describe('POST /api/stores/:storeId/inspections', () => {
@@ -204,6 +205,7 @@ describe('GET /api/inspections/:inspectionId', () => {
       ...inspection,
       store: stores[0],
       inspector: {firstName: 'Ina', lastName: 'Spector'},
+      tickets: [],
     });
   });
 
@@ -216,7 +218,22 @@ describe('GET /api/inspections/:inspectionId', () => {
       ...inspection,
       store: stores[0],
       inspector: {firstName: 'Ina', lastName: 'Spector'},
+      tickets: [],
     });
+  });
+
+  it("lists the inspection's findings when it is opened (AC 6.1)", async () => {
+    const second = {...ticket, id: 13, description: 'No soap at hand sink'};
+    vi.mocked(ticketsDb.listTicketsForInspection).mockResolvedValue([
+      ticket,
+      second,
+    ]);
+    const res = await request(app)
+      .get('/api/inspections/7')
+      .set(asUser('inspector'));
+    expect(res.status).toBe(200);
+    expect(res.body.tickets).toEqual([ticket, second]);
+    expect(ticketsDb.listTicketsForInspection).toHaveBeenCalledWith(7);
   });
 
   it('refuses to open an inspection when not logged in (AC 5.4)', async () => {

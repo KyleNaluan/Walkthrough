@@ -58,6 +58,7 @@ inspectionsRouter.get(
       ...inspection,
       store,
       inspector: {firstName: inspector.firstName, lastName: inspector.lastName},
+      tickets: await tickets.listTicketsForInspection(inspectionId),
     });
   },
 );
