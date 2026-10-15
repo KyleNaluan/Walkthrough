@@ -27,6 +27,13 @@ export interface StoreRow {
   owner_id: string;
 }
 
+export interface InspectionRow {
+  inspection_id: number;
+  started_at: string;
+  store_id: number;
+  inspector_id: string;
+}
+
 // The camelCase objects the rest of the server uses.
 export interface AppUser {
   id: string;
@@ -41,4 +48,11 @@ export interface Store {
   name: string;
   address: string;
   ownerId: string;
+}
+
+export interface Inspection {
+  id: number;
+  startedAt: string;
+  storeId: number;
+  inspectorId: string;
 }
