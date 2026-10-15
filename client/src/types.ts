@@ -22,3 +22,16 @@ export interface Store {
   address: string;
   ownerId: string;
 }
+
+export interface Inspection {
+  id: number;
+  startedAt: string;
+  storeId: number;
+  inspectorId: string;
+}
+
+/** An inspection with its store and inspector, from GET /api/inspections/:id. */
+export interface InspectionDetail extends Inspection {
+  store: Store;
+  inspector: {firstName: string; lastName: string};
+}
