@@ -379,4 +379,45 @@ describe('InspectionPage', () => {
     ).toHaveAttribute('src', 'https://example.test/signed.png');
     expect(photoRequests(fetch)).toHaveLength(1);
   });
+
+  it('shows "Photo unavailable" when the photo is refused (AC 7.3)', async () => {
+    await openWithFinding(
+      owner,
+      Response.json({error: 'Access denied'}, {status: 403}),
+    );
+    fireEvent.click(screen.getByRole('button', {name: 'Show photo'}));
+    expect(await screen.findByText('Photo unavailable')).toBeInTheDocument();
+    expect(
+      screen.queryByAltText('Raw chicken stored above salad'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows "Photo unavailable" when the photo link has expired (AC 7.4)', async () => {
+    await openWithFinding(inspector);
+    fireEvent.click(screen.getByRole('button', {name: 'Show photo'}));
+    fireEvent.error(
+      await screen.findByAltText('Raw chicken stored above salad'),
+    );
+    expect(screen.getByText('Photo unavailable')).toBeInTheDocument();
+    expect(
+      screen.queryByAltText('Raw chicken stored above salad'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('asks for a new link when the photo is opened again (AC 7.4)', async () => {
+    let links = 0;
+    const fetch = await openWithFinding(inspector, () => ({
+      url: `https://example.test/signed-${++links}.png`,
+    }));
+    fireEvent.click(screen.getByRole('button', {name: 'Show photo'}));
+    fireEvent.error(
+      await screen.findByAltText('Raw chicken stored above salad'),
+    );
+    fireEvent.click(screen.getByRole('button', {name: 'Hide photo'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Show photo'}));
+    expect(
+      await screen.findByAltText('Raw chicken stored above salad'),
+    ).toHaveAttribute('src', 'https://example.test/signed-2.png');
+    expect(photoRequests(fetch)).toHaveLength(2);
+  });
 });
