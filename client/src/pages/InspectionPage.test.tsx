@@ -1,4 +1,5 @@
 import {fireEvent, screen} from '@testing-library/react';
+import {useNavigate} from 'react-router';
 import {describe, expect, it, vi} from 'vitest';
 import {resizeImage} from '../lib/resizeImage';
 import {AppRoutes} from '../routes';
@@ -10,6 +11,16 @@ import {inspection, inspector, owner, stores, ticket} from '../test/users';
 vi.mock('../lib/resizeImage', () => ({
   resizeImage: vi.fn(async (file: File) => file),
 }));
+
+/** Opens inspection 8 without leaving the inspection page. */
+function OpenInspection8() {
+  const navigate = useNavigate();
+  return (
+    <button onClick={() => navigate('/inspections/8')}>
+      Open inspection 8
+    </button>
+  );
+}
 
 /** A small PNG for the photo input. */
 const photo = new File(['png'], 'photo.png', {type: 'image/png'});
@@ -174,6 +185,32 @@ describe('InspectionPage', () => {
     expect(screen.getByText('T-0012')).toBeInTheDocument();
     expect(screen.getByText('No soap at hand sink')).toBeInTheDocument();
     expect(sentFindings(fetch)).toHaveLength(2);
+  });
+
+  it("shows only the opened inspection's findings after moving to another one (AC 6.1)", async () => {
+    stubApi({
+      '/api/inspections/7': inspection,
+      '/api/inspections/7/tickets': Response.json(ticket, {status: 201}),
+      '/api/inspections/8': {
+        ...inspection,
+        id: 8,
+        tickets: [{...ticket, id: 14, description: 'No soap', inspectionId: 8}],
+      },
+    });
+    renderWithAuth(
+      <>
+        <AppRoutes />
+        <OpenInspection8 />
+      </>,
+      {user: inspector, route: '/inspections/7'},
+    );
+    await screen.findByRole('button', {name: 'Save finding'});
+    saveFinding();
+    await screen.findByText('T-0012');
+    fireEvent.click(screen.getByRole('button', {name: 'Open inspection 8'}));
+    expect(await screen.findByText('T-0014')).toBeInTheDocument();
+    expect(screen.getByText('INS-0008')).toBeInTheDocument();
+    expect(screen.queryByText('T-0012')).not.toBeInTheDocument();
   });
 
   it('shows "A photo is required" and sends nothing without a photo (AC 6.3)', async () => {

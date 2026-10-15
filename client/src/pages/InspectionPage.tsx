@@ -50,6 +50,11 @@ function FindingRow({ticket}: {ticket: Ticket}) {
  */
 export function InspectionPage() {
   const {inspectionId} = useParams();
+  // A new page for each inspection, so its findings and form never carry over.
+  return <InspectionView key={inspectionId} inspectionId={inspectionId} />;
+}
+
+function InspectionView({inspectionId}: {inspectionId?: string}) {
   const {user} = useAuth();
   const inspection = useApi<InspectionDetail>(
     `/api/inspections/${inspectionId}`,
