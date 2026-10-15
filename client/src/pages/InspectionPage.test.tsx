@@ -370,6 +370,38 @@ describe('InspectionPage', () => {
     ).toBeInTheDocument();
   });
 
+  it("shows each finding's own photo when both are opened (AC 7.1)", async () => {
+    const fetch = stubApi({
+      '/api/inspections/7': {
+        ...inspection,
+        tickets: [
+          ticket,
+          {...ticket, id: 13, description: 'No soap at hand sink'},
+        ],
+      },
+      '/api/tickets/12/photo': {url: 'https://example.test/12.png'},
+      '/api/tickets/13/photo': {url: 'https://example.test/13.png'},
+    });
+    renderWithAuth(<AppRoutes />, {user: inspector, route: '/inspections/7'});
+    const [first, second] = await screen.findAllByRole('button', {
+      name: 'Show photo',
+    });
+    fireEvent.click(first);
+    fireEvent.click(second);
+    expect(
+      await screen.findByAltText('Raw chicken stored above salad'),
+    ).toHaveAttribute('src', 'https://example.test/12.png');
+    expect(await screen.findByAltText('No soap at hand sink')).toHaveAttribute(
+      'src',
+      'https://example.test/13.png',
+    );
+    expect(
+      fetch.mock.calls
+        .map(([path]) => path)
+        .filter((path) => path.endsWith('/photo')),
+    ).toEqual(['/api/tickets/12/photo', '/api/tickets/13/photo']);
+  });
+
   it("shows a finding's photo when the store's owner opens it (AC 7.2)", async () => {
     const fetch = await openWithFinding(owner);
     expect(photoRequests(fetch)).toHaveLength(0);

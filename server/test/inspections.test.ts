@@ -489,6 +489,23 @@ describe('GET /api/tickets/:ticketId/photo', () => {
     expect(photos.signedPhotoUrl).toHaveBeenCalledWith('tickets/abc.png');
   });
 
+  it('sends each finding the link to its own photo (AC 7.1)', async () => {
+    vi.mocked(storesDb.storeIdForTicket).mockResolvedValue(inspection.storeId);
+    vi.mocked(ticketsDb.getTicketPhoto).mockImplementation(
+      async (id) => `tickets/${id}.png`,
+    );
+    for (const id of [12, 13]) {
+      const res = await request(app)
+        .get(`/api/tickets/${id}/photo`)
+        .set(asUser('inspector'));
+      expect(res.status).toBe(200);
+      expect(ticketsDb.getTicketPhoto).toHaveBeenLastCalledWith(id);
+      expect(photos.signedPhotoUrl).toHaveBeenLastCalledWith(
+        `tickets/${id}.png`,
+      );
+    }
+  });
+
   it.each([{}, {Authorization: 'Bearer nonsense'}])(
     'refuses a photo request that is not logged in and sends no link',
     async (headers) => {
