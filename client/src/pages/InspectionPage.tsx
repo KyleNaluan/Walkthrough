@@ -1,6 +1,9 @@
 import {Anchor, Group, Paper, Text} from '@mantine/core';
 import {IconArrowLeft} from '@tabler/icons-react';
+import {useState} from 'react';
 import {Link, useParams} from 'react-router';
+import {useAuth} from '../auth/useAuth';
+import {FindingForm} from '../components/FindingForm';
 import {SeverityBadge, StatusBadge} from '../components/ui/Badges';
 import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
@@ -47,10 +50,14 @@ function FindingRow({ticket}: {ticket: Ticket}) {
  */
 export function InspectionPage() {
   const {inspectionId} = useParams();
+  const {user} = useAuth();
   const inspection = useApi<InspectionDetail>(
     `/api/inspections/${inspectionId}`,
   );
-  const tickets = inspection.status === 'done' ? inspection.data.tickets : [];
+  // Findings recorded on this page, after the ones the inspection came with.
+  const [added, setAdded] = useState<Ticket[]>([]);
+  const tickets =
+    inspection.status === 'done' ? [...inspection.data.tickets, ...added] : [];
 
   return (
     <>
@@ -99,6 +106,15 @@ export function InspectionPage() {
               <FindingRow key={ticket.id} ticket={ticket} />
             ))}
           </Section>
+          {/* The server refuses owners too (AC 6.8). */}
+          {user?.role === 'inspector' && (
+            <Section title="Record a finding">
+              <FindingForm
+                inspectionId={inspection.data.id}
+                onSaved={(ticket) => setAdded((saved) => [...saved, ticket])}
+              />
+            </Section>
+          )}
         </>
       )}
     </>
