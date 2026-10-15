@@ -1,4 +1,4 @@
-import {fireEvent, screen} from '@testing-library/react';
+import {act, fireEvent, screen} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import {readSession} from '../auth/session';
 import {AppRoutes} from '../routes';
@@ -105,6 +105,28 @@ describe('StoreDetailPage', () => {
       ([path]) => path === '/api/stores/1/inspections',
     );
     expect(posts).toHaveLength(1);
+  });
+
+  it('stays on the store list when Back is pressed while an inspection is starting (AC 5.1)', async () => {
+    const fetch = stubApi({
+      '/api/stores': stores,
+      '/api/stores/1': stores[0],
+      '/api/inspections/7': inspection,
+    });
+    renderWithAuth(<AppRoutes />, {user: inspector, route: '/stores/1'});
+    const button = await screen.findByRole('button', {
+      name: 'Start inspection',
+    });
+    let respond: (res: Response) => void = () => {};
+    fetch.mockImplementationOnce(
+      () => new Promise<Response>((resolve) => (respond = resolve)),
+    );
+    fireEvent.click(button);
+    fireEvent.click(screen.getByRole('link', {name: 'Back to stores'}));
+    await screen.findByText('3 stores');
+    await act(async () => respond(Response.json(inspection, {status: 201})));
+    expect(screen.getByText('3 stores')).toBeInTheDocument();
+    expect(screen.queryByText('INS-0007')).not.toBeInTheDocument();
   });
 
   it('does not offer Start inspection to a store owner (AC 5.2)', async () => {

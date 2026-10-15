@@ -1,6 +1,6 @@
 import {Alert, Anchor, Button, Group} from '@mantine/core';
 import {IconAlertCircle, IconArrowLeft} from '@tabler/icons-react';
-import {useState} from 'react';
+import {useEffect, useRef, useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router';
 import {ApiError, apiPost} from '../api';
 import {useAuth} from '../auth/useAuth';
@@ -24,6 +24,15 @@ export function StoreDetailPage() {
   const store = useApi<Store>(`/api/stores/${storeId}`);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // Leaving the page while the request is out must not open the inspection.
+  const active = useRef(true);
+
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+    };
+  }, []);
 
   async function startInspection(id: number) {
     setBusy(true);
@@ -33,7 +42,7 @@ export function StoreDetailPage() {
         `/api/stores/${id}/inspections`,
         {},
       );
-      navigate(`/inspections/${inspection.id}`);
+      if (active.current) navigate(`/inspections/${inspection.id}`);
     } catch (err) {
       setError(
         err instanceof ApiError
