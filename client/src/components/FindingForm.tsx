@@ -12,9 +12,13 @@ import {useForm} from '@mantine/form';
 import {IconAlertCircle} from '@tabler/icons-react';
 import {useState} from 'react';
 import {ApiError, apiUpload} from '../api';
+import {resizeImage} from '../lib/resizeImage';
 import {today} from '../lib/today';
 import {SEVERITY} from '../status';
 import type {Severity, Ticket} from '../types';
+
+// The server's limit; Vercel refuses a body over about 4.5 MB on its own.
+const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 
 interface FindingValues {
   description: string;
@@ -54,11 +58,17 @@ export function FindingForm({
   async function handleSubmit(values: FindingValues) {
     setBusy(true);
     setError(null);
+    const photo = await resizeImage(values.photo!);
+    if (photo.size > MAX_PHOTO_BYTES) {
+      form.setFieldError('photo', 'Photo is too large');
+      setBusy(false);
+      return;
+    }
     const body = new FormData();
     body.append('description', values.description);
     body.append('severity', values.severity);
     body.append('deadline', values.deadline!);
-    body.append('photo', values.photo!);
+    body.append('photo', photo);
     try {
       onSaved(
         await apiUpload<Ticket>(

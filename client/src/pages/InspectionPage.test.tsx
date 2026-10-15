@@ -1,9 +1,15 @@
 import {fireEvent, screen} from '@testing-library/react';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
+import {resizeImage} from '../lib/resizeImage';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
 import {inspection, inspector, owner, stores, ticket} from '../test/users';
+
+// Photos go up unchanged unless a test shrinks them.
+vi.mock('../lib/resizeImage', () => ({
+  resizeImage: vi.fn(async (file: File) => file),
+}));
 
 /** A small PNG for the photo input. */
 const photo = new File(['png'], 'photo.png', {type: 'image/png'});
@@ -243,5 +249,33 @@ describe('InspectionPage', () => {
       await screen.findByText('Deadline cannot be in the past'),
     ).toBeInTheDocument();
     expect(screen.queryByText('T-0012')).not.toBeInTheDocument();
+  });
+
+  it('shrinks the photo before upload (AC 6.9)', async () => {
+    vi.mocked(resizeImage).mockResolvedValueOnce(
+      new File(['jpeg'], 'photo.jpg', {type: 'image/jpeg'}),
+    );
+    const fetch = await openAsInspector({
+      '/api/inspections/7/tickets': Response.json(ticket, {status: 201}),
+    });
+    saveFinding();
+    await screen.findByText('T-0012');
+    expect(resizeImage).toHaveBeenCalledWith(photo);
+    expect(sentFindings(fetch)[0].get('photo')).toHaveProperty(
+      'name',
+      'photo.jpg',
+    );
+  });
+
+  it('shows "Photo is too large" and sends nothing when the photo is still too large (AC 6.9)', async () => {
+    vi.mocked(resizeImage).mockResolvedValueOnce(
+      new File([new Uint8Array(4 * 1024 * 1024 + 1)], 'photo.png', {
+        type: 'image/png',
+      }),
+    );
+    const fetch = await openAsInspector();
+    saveFinding();
+    expect(await screen.findByText('Photo is too large')).toBeInTheDocument();
+    expect(sentFindings(fetch)).toHaveLength(0);
   });
 });
