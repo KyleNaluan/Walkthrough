@@ -1,4 +1,4 @@
-import type {InspectionDetail, Store, User} from '../types';
+import type {InspectionDetail, Store, Ticket, User} from '../types';
 
 export const inspector: User = {
   id: 'inspector-1',
@@ -31,4 +31,16 @@ export const inspection: InspectionDetail = {
   inspectorId: inspector.id,
   store: stores[0],
   inspector: {firstName: 'Jordan', lastName: 'Reyes'},
+  tickets: [],
+};
+
+/** Ticket 12, a finding recorded on inspection 7. */
+export const ticket: Ticket = {
+  id: 12,
+  description: 'Raw chicken stored above salad',
+  severity: 'high',
+  deadline: '2099-01-15',
+  recordedAt: '2026-10-15T15:30:00.000Z',
+  status: 'open',
+  inspectionId: 7,
 };

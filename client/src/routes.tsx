@@ -1,14 +1,22 @@
+import {lazy, Suspense} from 'react';
 import {Navigate, Route, Routes} from 'react-router';
 import {ProtectedRoute} from './auth/ProtectedRoute';
 import {landingPathFor, useAuth} from './auth/useAuth';
 import {Layout} from './components/Layout';
-import {InspectionPage} from './pages/InspectionPage';
+import {Loading} from './components/ui/LoadState';
 import {LoginPage} from './pages/LoginPage';
 import {NotFoundPage} from './pages/NotFoundPage';
 import {StoreDetailPage} from './pages/StoreDetailPage';
 import {StoresPage} from './pages/StoresPage';
 import {TicketDetailPage} from './pages/TicketDetailPage';
 import {TicketsPage} from './pages/TicketsPage';
+
+// The finding form's date picker is large, so this page loads on first visit.
+const InspectionPage = lazy(() =>
+  import('./pages/InspectionPage').then((page) => ({
+    default: page.InspectionPage,
+  })),
+);
 
 function Home() {
   const {user} = useAuth();
@@ -27,7 +35,11 @@ export function AppRoutes() {
           <Route path="/stores/:storeId" element={<StoreDetailPage />} />
           <Route
             path="/inspections/:inspectionId"
-            element={<InspectionPage />}
+            element={
+              <Suspense fallback={<Loading />}>
+                <InspectionPage />
+              </Suspense>
+            }
           />
           <Route path="/tickets" element={<TicketsPage />} />
           <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />

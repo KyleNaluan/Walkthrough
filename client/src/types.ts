@@ -30,8 +30,22 @@ export interface Inspection {
   inspectorId: string;
 }
 
-/** An inspection with its store and inspector, from GET /api/inspections/:id. */
+export interface Ticket {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  recordedAt: string;
+  status: TicketStatus;
+  inspectionId: number;
+}
+
+/**
+ * An inspection with its store, inspector and findings, from
+ * GET /api/inspections/:id.
+ */
 export interface InspectionDetail extends Inspection {
   store: Store;
   inspector: {firstName: string; lastName: string};
+  tickets: Ticket[];
 }

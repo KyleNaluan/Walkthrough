@@ -97,7 +97,7 @@ describe('storage', () => {
     expect(upload).toHaveBeenCalledWith(path, png, {contentType: 'image/png'});
   });
 
-  it('signedPhotoUrl asks for a 5-minute link', async () => {
+  it('signedPhotoUrl asks for a 5-minute link (AC 7.4)', async () => {
     const createSignedUrl = vi.fn(async () => ({
       data: {signedUrl: 'https://example.test/signed'},
       error: null,
@@ -107,5 +107,24 @@ describe('storage', () => {
       'https://example.test/signed',
     );
     expect(createSignedUrl).toHaveBeenCalledWith('tickets/x.png', 300);
+  });
+
+  it('signedPhotoUrl refuses a photo Storage does not have with 404 (AC 7.1)', async () => {
+    mockBucket({
+      createSignedUrl: async () => ({
+        data: null,
+        error: {statusCode: '404', message: 'Object not found'},
+      }),
+    });
+    await expect(signedPhotoUrl('tickets/x.png')).rejects.toMatchObject({
+      status: 404,
+      message: 'Photo not found',
+    });
+  });
+
+  it('signedPhotoUrl passes on any other Storage error', async () => {
+    const error = {statusCode: '500', message: 'Internal Server Error'};
+    mockBucket({createSignedUrl: async () => ({data: null, error})});
+    await expect(signedPhotoUrl('tickets/x.png')).rejects.toBe(error);
   });
 });
