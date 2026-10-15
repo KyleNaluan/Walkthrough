@@ -506,6 +506,19 @@ describe('GET /api/tickets/:ticketId/photo', () => {
     }
   });
 
+  it.each([null, ''])(
+    'sends "Photo not found" and no link for a finding whose photo path is %j (AC 7.1)',
+    async (path) => {
+      vi.mocked(ticketsDb.getTicketPhoto).mockResolvedValue(path);
+      const res = await request(app)
+        .get('/api/tickets/12/photo')
+        .set(asUser('inspector'));
+      expect(res.status).toBe(404);
+      expect(res.body).toEqual({error: 'Photo not found'});
+      expect(photos.signedPhotoUrl).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([{}, {Authorization: 'Bearer nonsense'}])(
     'refuses a photo request that is not logged in and sends no link',
     async (headers) => {

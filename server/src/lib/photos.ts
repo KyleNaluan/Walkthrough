@@ -77,6 +77,7 @@ export async function signedPhotoUrl(path: string): Promise<string> {
   const {data, error} = await getSupabaseAdmin()
     .storage.from(BUCKET)
     .createSignedUrl(path, SIGNED_URL_SECONDS);
+  if (error?.statusCode === '404') throw new HttpError(404, 'Photo not found');
   if (error) throw error;
   return data.signedUrl;
 }

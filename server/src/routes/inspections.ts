@@ -8,6 +8,7 @@ import {
   assertStoreAccess,
   assertTicketAccess,
 } from '../lib/access.js';
+import {HttpError} from '../lib/errors.js';
 import {
   deletePhoto,
   photoUpload,
@@ -99,7 +100,8 @@ inspectionsRouter.get(
   async (req, res) => {
     const {ticketId} = parseParams(ticketParams, req);
     await assertTicketAccess(req.user!, ticketId);
-    const path = (await tickets.getTicketPhoto(ticketId))!;
+    const path = await tickets.getTicketPhoto(ticketId);
+    if (!path) throw new HttpError(404, 'Photo not found');
     res.json({url: await signedPhotoUrl(path)});
   },
 );
