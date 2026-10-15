@@ -97,7 +97,7 @@ describe('storage', () => {
     expect(upload).toHaveBeenCalledWith(path, png, {contentType: 'image/png'});
   });
 
-  it('signedPhotoUrl asks for a 5-minute link', async () => {
+  it('signedPhotoUrl asks for a 5-minute link (AC 7.4)', async () => {
     const createSignedUrl = vi.fn(async () => ({
       data: {signedUrl: 'https://example.test/signed'},
       error: null,

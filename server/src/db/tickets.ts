@@ -38,6 +38,17 @@ export async function createTicket(
   return toTicket(data);
 }
 
+/** A ticket's photo path in the photos bucket, or null if it doesn't exist. */
+export async function getTicketPhoto(id: number): Promise<string | null> {
+  const {data, error} = await getSupabaseAdmin()
+    .from('ticket')
+    .select('photo')
+    .eq('ticket_id', id)
+    .maybeSingle<{photo: string}>();
+  if (error) throw error;
+  return data?.photo ?? null;
+}
+
 /** An inspection's tickets, in the order they were recorded. */
 export async function listTicketsForInspection(
   inspectionId: number,

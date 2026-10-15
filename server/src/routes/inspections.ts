@@ -3,10 +3,15 @@ import {z} from 'zod';
 import * as inspections from '../db/inspections.js';
 import * as tickets from '../db/tickets.js';
 import * as users from '../db/users.js';
-import {assertInspectionAccess, assertStoreAccess} from '../lib/access.js';
+import {
+  assertInspectionAccess,
+  assertStoreAccess,
+  assertTicketAccess,
+} from '../lib/access.js';
 import {
   deletePhoto,
   photoUpload,
+  signedPhotoUrl,
   uploadPhoto,
   validatePhoto,
 } from '../lib/photos.js';
@@ -24,6 +29,7 @@ export const inspectionsRouter = Router();
 
 const storeParams = z.object({storeId: idParam});
 const inspectionParams = z.object({inspectionId: idParam});
+const ticketParams = z.object({ticketId: idParam});
 const findingBody = z.object({
   description: nonBlank('Description'),
   severity: z.enum(['low', 'medium', 'high'], 'Severity is required'),
@@ -82,5 +88,18 @@ inspectionsRouter.post(
       await deletePhoto(photo);
       throw err;
     }
+  },
+);
+
+// Access is checked before the photo path is read, so a refused request gets
+// no photo or link (AC 7.3). The link expires after 5 minutes (AC 7.4).
+inspectionsRouter.get(
+  '/tickets/:ticketId/photo',
+  requireUser,
+  async (req, res) => {
+    const {ticketId} = parseParams(ticketParams, req);
+    await assertTicketAccess(req.user!, ticketId);
+    const path = (await tickets.getTicketPhoto(ticketId))!;
+    res.json({url: await signedPhotoUrl(path)});
   },
 );

@@ -18,6 +18,7 @@ vi.mock('../src/lib/photos.js', async (importOriginal) => ({
   ...(await importOriginal<typeof photos>()),
   uploadPhoto: vi.fn(async () => 'tickets/abc.png'),
   deletePhoto: vi.fn(async () => {}),
+  signedPhotoUrl: vi.fn(async () => 'https://example.test/signed.png'),
 }));
 
 const startedAt = '2026-10-14T14:05:00.000Z';
@@ -118,6 +119,10 @@ beforeEach(() => {
     }),
   );
   vi.mocked(ticketsDb.listTicketsForInspection).mockResolvedValue([]);
+  vi.mocked(storesDb.storeIdForTicket).mockImplementation(async (id) =>
+    id === ticket.id ? inspection.storeId : null,
+  );
+  vi.mocked(ticketsDb.getTicketPhoto).mockResolvedValue('tickets/abc.png');
 });
 
 describe('POST /api/stores/:storeId/inspections', () => {
@@ -433,5 +438,82 @@ describe('POST /api/inspections/:inspectionId/tickets', () => {
     const res = await postFinding();
     expect(res.status).toBe(409);
     expect(photos.deletePhoto).toHaveBeenCalledWith('tickets/abc.png');
+  });
+});
+
+describe('GET /api/tickets/:ticketId/photo', () => {
+  /** Checks that the photo path was not read and no link was made. */
+  function expectNoLink() {
+    expect(ticketsDb.getTicketPhoto).not.toHaveBeenCalled();
+    expect(photos.signedPhotoUrl).not.toHaveBeenCalled();
+  }
+
+  it.each(['inspector', 'inspector2'] as const)(
+    "sends an inspector a link to a finding's photo (AC 7.1)",
+    async (user) => {
+      const res = await request(app)
+        .get('/api/tickets/12/photo')
+        .set(asUser(user));
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({url: 'https://example.test/signed.png'});
+      expect(ticketsDb.getTicketPhoto).toHaveBeenCalledWith(12);
+      expect(photos.signedPhotoUrl).toHaveBeenCalledWith('tickets/abc.png');
+    },
+  );
+
+  it("sends the store's owner a link to a finding's photo (AC 7.2)", async () => {
+    const res = await request(app)
+      .get('/api/tickets/12/photo')
+      .set(asUser('ownerA'));
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({url: 'https://example.test/signed.png'});
+    expect(photos.signedPhotoUrl).toHaveBeenCalledWith('tickets/abc.png');
+  });
+
+  it("refuses another owner's photo and sends no photo or link (AC 7.3)", async () => {
+    const res = await request(app)
+      .get('/api/tickets/12/photo')
+      .set(asUser('ownerB'));
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({error: 'Access denied'});
+    expectNoLink();
+  });
+
+  it('sends only a signed link, never the stored path (AC 7.4)', async () => {
+    const res = await request(app)
+      .get('/api/tickets/12/photo')
+      .set(asUser('inspector'));
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body)).toEqual(['url']);
+    expect(res.text).not.toContain('tickets/abc.png');
+    expect(photos.signedPhotoUrl).toHaveBeenCalledWith('tickets/abc.png');
+  });
+
+  it.each([{}, {Authorization: 'Bearer nonsense'}])(
+    'refuses a photo request that is not logged in and sends no link',
+    async (headers) => {
+      const res = await request(app).get('/api/tickets/12/photo').set(headers);
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({error: 'Not logged in'});
+      expectNoLink();
+    },
+  );
+
+  it('sends "Ticket not found" and no link for a finding that does not exist', async () => {
+    const res = await request(app)
+      .get('/api/tickets/99/photo')
+      .set(asUser('inspector'));
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({error: 'Ticket not found'});
+    expectNoLink();
+  });
+
+  it('refuses a ticket ID that is not a number and sends no link', async () => {
+    const res = await request(app)
+      .get('/api/tickets/abc/photo')
+      .set(asUser('inspector'));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('Invalid ID');
+    expectNoLink();
   });
 });
