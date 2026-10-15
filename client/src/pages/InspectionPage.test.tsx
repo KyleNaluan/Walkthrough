@@ -229,6 +229,13 @@ describe('InspectionPage', () => {
     expect(sentFindings(fetch)).toHaveLength(0);
   });
 
+  it('refuses a deadline that does not exist instead of moving it (AC 6.4)', async () => {
+    const fetch = await openAsInspector();
+    saveFinding({deadline: '2099-02-31'});
+    expect(await screen.findByText('Deadline is required')).toBeInTheDocument();
+    expect(sentFindings(fetch)).toHaveLength(0);
+  });
+
   it(`shows the server's "Photo must be a JPEG or PNG image" and lists nothing new (AC 6.5)`, async () => {
     await openAsInspector({
       '/api/inspections/7/tickets': Response.json(

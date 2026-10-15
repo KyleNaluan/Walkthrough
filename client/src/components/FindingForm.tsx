@@ -20,6 +20,16 @@ import type {Severity, Ticket} from '../types';
 // The server's limit; Vercel refuses a body over about 4.5 MB on its own.
 const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 
+// Refuses a day that doesn't exist, e.g. 2099-02-31, instead of moving it.
+function parseDeadline(value: string) {
+  const date = new Date(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+    !Number.isNaN(date.getTime()) &&
+    date.toISOString().startsWith(value)
+    ? value
+    : null;
+}
+
 interface FindingValues {
   description: string;
   severity: Severity | '';
@@ -113,6 +123,7 @@ export function FindingForm({
           label="Deadline"
           valueFormat="YYYY-MM-DD"
           placeholder="YYYY-MM-DD"
+          dateParser={parseDeadline}
           withAsterisk
           {...form.getInputProps('deadline')}
         />
