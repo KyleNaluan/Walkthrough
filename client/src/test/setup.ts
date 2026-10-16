@@ -19,6 +19,11 @@ window.ResizeObserver = class {
   disconnect() {}
 };
 window.HTMLElement.prototype.scrollIntoView = () => {};
+// Textarea autosize listens for web fonts loading.
+Object.defineProperty(document, 'fonts', {
+  configurable: true,
+  value: {addEventListener: () => {}, removeEventListener: () => {}},
+});
 
 afterEach(() => {
   sessionStorage.clear();
