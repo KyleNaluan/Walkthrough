@@ -49,3 +49,46 @@ export interface InspectionDetail extends Inspection {
   inspector: {firstName: string; lastName: string};
   tickets: Ticket[];
 }
+
+/** A row of the ticket list (story 8). */
+export interface TicketSummary {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  status: TicketStatus;
+  overdue: boolean;
+  store: {id: number; name: string};
+}
+
+export type ReviewDecision =
+  'approved' | 'changes_requested' | 'reinspection_scheduled';
+
+export interface FixReview {
+  decision: ReviewDecision;
+  comment: string | null;
+  reviewedAt: string;
+  reviewerName: string;
+}
+
+/** One fix round; `review` stays null until an inspector reviews it. */
+export interface FixSubmission {
+  id: number;
+  description: string;
+  submittedAt: string;
+  review: FixReview | null;
+}
+
+/** A ticket with its store and every fix round, oldest first. */
+export interface TicketDetail {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  recordedAt: string;
+  status: TicketStatus;
+  overdue: boolean;
+  inspectionId: number;
+  store: {id: number; name: string};
+  fixes: FixSubmission[];
+}
