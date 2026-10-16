@@ -76,3 +76,14 @@ export interface Ticket {
   status: TicketStatus;
   inspectionId: number;
 }
+
+/** A row of the ticket list (story 8). */
+export interface TicketSummary {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  status: TicketStatus;
+  overdue: boolean;
+  store: {id: number; name: string};
+}

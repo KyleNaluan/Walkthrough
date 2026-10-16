@@ -1,5 +1,11 @@
 import {getSupabaseAdmin} from '../lib/supabase.js';
-import type {Severity, Ticket, TicketRow} from './types.js';
+import type {
+  Severity,
+  Ticket,
+  TicketRow,
+  TicketStatus,
+  TicketSummary,
+} from './types.js';
 
 // The photo path stays on the server, so it is never selected here.
 const ticketColumns =
@@ -61,4 +67,56 @@ export async function listTicketsForInspection(
     .overrideTypes<TicketRow[], {merge: false}>();
   if (error) throw error;
   return data.map(toTicket);
+}
+
+// Story 8: the ticket list -------------------------------------------------
+
+/** A ticket list row as stored; the route works out whether it is overdue. */
+export type TicketListRecord = Omit<TicketSummary, 'overdue'>;
+
+interface TicketListRow {
+  ticket_id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  status: TicketStatus;
+  inspection: {store: {store_id: number; name: string}};
+}
+
+/**
+ * Tickets by deadline, earliest first (AC 8.3). `storeIds` limits them to
+ * those stores, or null for every store; `status` keeps only that status.
+ */
+export async function listTickets({
+  storeIds,
+  status,
+}: {
+  storeIds: number[] | null;
+  status?: TicketStatus;
+}): Promise<TicketListRecord[]> {
+  if (storeIds && storeIds.length === 0) return [];
+  let query = getSupabaseAdmin()
+    .from('ticket')
+    .select(
+      `ticket_id, description, severity, deadline, status,
+       inspection!inner(store_id, store!inner(store_id, name))`,
+    );
+  if (storeIds) query = query.in('inspection.store_id', storeIds);
+  if (status) query = query.eq('status', status);
+  const {data, error} = await query
+    .order('deadline')
+    .order('ticket_id')
+    .overrideTypes<TicketListRow[], {merge: false}>();
+  if (error) throw error;
+  return data.map((row) => ({
+    id: row.ticket_id,
+    description: row.description,
+    severity: row.severity,
+    deadline: row.deadline,
+    status: row.status,
+    store: {
+      id: row.inspection.store.store_id,
+      name: row.inspection.store.name,
+    },
+  }));
 }

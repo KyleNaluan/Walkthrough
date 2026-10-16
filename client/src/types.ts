@@ -49,3 +49,14 @@ export interface InspectionDetail extends Inspection {
   inspector: {firstName: string; lastName: string};
   tickets: Ticket[];
 }
+
+/** A row of the ticket list (story 8). */
+export interface TicketSummary {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  status: TicketStatus;
+  overdue: boolean;
+  store: {id: number; name: string};
+}
