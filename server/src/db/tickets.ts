@@ -239,3 +239,37 @@ export async function submitFix(
   if (error) throw error;
   return data as number;
 }
+
+// Story 10: approve a fix ------------------------------------------------------
+
+/** The ID of the ticket's newest fix round, or null if it has none. */
+export async function latestFixId(ticketId: number): Promise<number | null> {
+  const {data, error} = await getSupabaseAdmin()
+    .from('fix_submission')
+    .select('fix_submission_id')
+    .eq('ticket_id', ticketId)
+    .order('fix_submission_id', {ascending: false})
+    .limit(1)
+    .maybeSingle<{fix_submission_id: number}>();
+  if (error) throw error;
+  return data?.fix_submission_id ?? null;
+}
+
+/**
+ * Saves a review of a fix and moves the ticket on in one step (review_fix in
+ * 002_status_functions.sql). A refusal is a P0001 error.
+ */
+export async function reviewFix(
+  fixId: number,
+  reviewerId: string,
+  decision: ReviewDecision,
+  comment: string | null,
+): Promise<void> {
+  const {error} = await getSupabaseAdmin().rpc('review_fix', {
+    p_fix_id: fixId,
+    p_reviewer_id: reviewerId,
+    p_decision: decision,
+    p_comment: comment,
+  });
+  if (error) throw error;
+}

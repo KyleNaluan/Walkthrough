@@ -10,6 +10,7 @@ import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {Photo} from '../components/Photo';
 import {FixHistory} from '../components/tickets/FixHistory';
+import {ReviewForm} from '../components/tickets/ReviewForm';
 import {SubmitFixForm} from '../components/tickets/SubmitFixForm';
 import {
   OverdueBadge,
@@ -64,6 +65,8 @@ function Ticket({
   const canSubmitFix =
     isOwner &&
     (ticket.status === 'open' || ticket.status === 'changes_requested');
+  const canReview =
+    user?.role === 'inspector' && ticket.status === 'pending_review';
 
   return (
     <>
@@ -125,14 +128,21 @@ function Ticket({
           <Text fz="sm">{OWNER_NOTE[ticket.status]}</Text>
         </Group>
       )}
+
+      {canReview && (
+        <Section title="Review the latest fix">
+          <ReviewForm ticketId={ticket.id} onReviewed={onChange} />
+        </Section>
+      )}
     </>
   );
 }
 
 /**
  * One ticket: the finding, every fix round and its review, and the next
- * step for whoever is looking. Owners submit fixes (story 9). The server
- * checks access and status for each step.
+ * step for whoever is looking. Owners submit fixes (story 9); inspectors
+ * approve them (story 10). The server checks access and status for each
+ * step.
  */
 export function TicketDetailPage() {
   const {ticketId} = useParams();
