@@ -87,3 +87,33 @@ export interface TicketSummary {
   overdue: boolean;
   store: {id: number; name: string};
 }
+
+/** An inspector's decision on one fix round. Photo paths are never sent. */
+export interface FixReview {
+  decision: ReviewDecision;
+  comment: string | null;
+  reviewedAt: string;
+  reviewerName: string;
+}
+
+/** One fix round: what the owner sent and, once reviewed, the review. */
+export interface FixSubmission {
+  id: number;
+  description: string;
+  submittedAt: string;
+  review: FixReview | null;
+}
+
+/** A ticket with its store and every fix round, oldest first. */
+export interface TicketDetail {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  recordedAt: string;
+  status: TicketStatus;
+  overdue: boolean;
+  inspectionId: number;
+  store: {id: number; name: string};
+  fixes: FixSubmission[];
+}
