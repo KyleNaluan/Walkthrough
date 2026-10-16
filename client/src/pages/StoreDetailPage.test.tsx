@@ -71,7 +71,7 @@ describe('StoreDetailPage', () => {
   it('starts an inspection and opens its page (AC 5.1)', async () => {
     const fetch = stubApi({
       '/api/stores/1': stores[0],
-      '/api/stores/1/inspections': inspection,
+      'POST /api/stores/1/inspections': inspection,
       '/api/inspections/7': inspection,
     });
     renderWithAuth(<AppRoutes />, {user: inspector, route: '/stores/1'});
@@ -91,7 +91,7 @@ describe('StoreDetailPage', () => {
   it('sends one request when Start inspection is pressed twice (AC 5.1)', async () => {
     const fetch = stubApi({
       '/api/stores/1': stores[0],
-      '/api/stores/1/inspections': inspection,
+      'POST /api/stores/1/inspections': inspection,
       '/api/inspections/7': inspection,
     });
     renderWithAuth(<AppRoutes />, {user: inspector, route: '/stores/1'});
@@ -102,7 +102,8 @@ describe('StoreDetailPage', () => {
     fireEvent.click(button);
     await screen.findByText('INS-0007');
     const posts = fetch.mock.calls.filter(
-      ([path]) => path === '/api/stores/1/inspections',
+      ([path, init]) =>
+        path === '/api/stores/1/inspections' && init?.method === 'POST',
     );
     expect(posts).toHaveLength(1);
   });
@@ -145,7 +146,8 @@ describe('StoreDetailPage', () => {
   it('shows "Store not found" when the store is gone and stays on the store page (AC 5.3)', async () => {
     const fetch = stubApi({
       '/api/stores/1': stores[0],
-      '/api/stores/1/inspections': Response.json(
+      '/api/stores/1/inspections': [],
+      'POST /api/stores/1/inspections': Response.json(
         {error: 'Store not found'},
         {status: 404},
       ),
@@ -168,7 +170,7 @@ describe('StoreDetailPage', () => {
   it('goes to the login page when the session ended before Start inspection (AC 5.4)', async () => {
     stubApi({
       '/api/stores/1': stores[0],
-      '/api/stores/1/inspections': Response.json(
+      'POST /api/stores/1/inspections': Response.json(
         {error: 'Not logged in'},
         {status: 401},
       ),
