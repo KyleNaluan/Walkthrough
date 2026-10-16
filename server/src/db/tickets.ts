@@ -273,3 +273,26 @@ export async function reviewFix(
   });
   if (error) throw error;
 }
+
+// Story 12: re-inspections ----------------------------------------------------
+
+/**
+ * Saves a review of a fix that schedules a re-inspection, and moves the
+ * ticket on in one step (review_fix in 002_status_functions.sql). A refusal
+ * is a P0001 error.
+ */
+export async function scheduleReinspection(
+  fixId: number,
+  reviewerId: string,
+  comment: string | null,
+  scheduledFor: string,
+): Promise<void> {
+  const {error} = await getSupabaseAdmin().rpc('review_fix', {
+    p_fix_id: fixId,
+    p_reviewer_id: reviewerId,
+    p_decision: 'reinspection_scheduled',
+    p_comment: comment,
+    p_scheduled_for: scheduledFor,
+  });
+  if (error) throw error;
+}

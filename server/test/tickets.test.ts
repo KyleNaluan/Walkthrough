@@ -108,6 +108,26 @@ function p0001(message: string) {
   return Object.assign(new Error(message), {code: 'P0001'});
 }
 
+/** review_fix in 002_status_functions.sql, on the fake database. */
+async function fakeReviewFix(
+  fixId: number,
+  reviewerId: string,
+  decision: ReviewDecision,
+  comment: string | null,
+) {
+  const t = [...db.values()].find((x) => x.fixes.some((f) => f.id === fixId))!;
+  if (t.status !== 'pending_review') {
+    throw p0001('This ticket has no fix waiting for review');
+  }
+  t.fixes.find((f) => f.id === fixId)!.review = {
+    decision,
+    comment,
+    reviewedAt: '2026-10-14T16:00:00Z',
+    reviewerId,
+  };
+  t.status = decision === 'approved' ? 'resolved' : decision;
+}
+
 beforeEach(() => {
   // Stores 1-2 belong to ownerA, store 3 to ownerB.
   db = new Map(
@@ -159,22 +179,10 @@ beforeEach(() => {
       return id;
     },
   );
-  vi.mocked(ticketsDb.reviewFix).mockImplementation(
-    async (fixId, reviewerId, decision, comment) => {
-      const t = [...db.values()].find((x) =>
-        x.fixes.some((f) => f.id === fixId),
-      )!;
-      if (t.status !== 'pending_review') {
-        throw p0001('This ticket has no fix waiting for review');
-      }
-      t.fixes.find((f) => f.id === fixId)!.review = {
-        decision,
-        comment,
-        reviewedAt: '2026-10-14T16:00:00Z',
-        reviewerId,
-      };
-      t.status = decision === 'approved' ? 'resolved' : 'changes_requested';
-    },
+  vi.mocked(ticketsDb.reviewFix).mockImplementation(fakeReviewFix);
+  vi.mocked(ticketsDb.scheduleReinspection).mockImplementation(
+    (fixId, reviewerId, comment) =>
+      fakeReviewFix(fixId, reviewerId, 'reinspection_scheduled', comment),
   );
 });
 
@@ -561,5 +569,82 @@ describe('POST /api/tickets/:ticketId/review: request changes (story 11)', () =>
       comment: 'x',
     });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('POST /api/tickets/:ticketId/review: schedule a re-inspection (story 12)', () => {
+  it('schedules a re-inspection with the inspector, time and date (AC 12.1)', async () => {
+    const res = await review(4, 'inspector', {
+      decision: 'reinspection_scheduled',
+      scheduledFor: '2999-01-01',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('reinspection_scheduled');
+    expect(res.body.fixes[0].review).toEqual({
+      decision: 'reinspection_scheduled',
+      comment: null,
+      reviewedAt: '2026-10-14T16:00:00Z',
+      reviewerName: 'Ina Spector',
+    });
+    expect(ticketsDb.scheduleReinspection).toHaveBeenCalledWith(
+      11,
+      users.inspector.id,
+      null,
+      '2999-01-01',
+    );
+    expect(ticketsDb.reviewFix).not.toHaveBeenCalled();
+  });
+
+  it('refuses a schedule with no date and saves nothing (AC 12.1)', async () => {
+    const res = await review(4, 'inspector', {
+      decision: 'reinspection_scheduled',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      error: 'A re-inspection date is required',
+      fields: {scheduledFor: 'A re-inspection date is required'},
+    });
+    expect(ticketsDb.scheduleReinspection).not.toHaveBeenCalled();
+    expect(db.get(4)!.status).toBe('pending_review');
+  });
+
+  it('refuses a re-inspection date in the past (AC 12.1)', async () => {
+    const res = await review(4, 'inspector', {
+      decision: 'reinspection_scheduled',
+      scheduledFor: '2000-01-01',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.fields).toEqual({
+      scheduledFor: 'Re-inspection date cannot be in the past',
+    });
+    expect(ticketsDb.scheduleReinspection).not.toHaveBeenCalled();
+  });
+
+  it.each([1, 2, 5, 6])(
+    'changes nothing when scheduling a re-inspection on ticket %i, which is not Pending review (AC 12.5)',
+    async (ticketId) => {
+      const before = db.get(ticketId)!.status;
+      const res = await review(ticketId, 'inspector', {
+        decision: 'reinspection_scheduled',
+        scheduledFor: '2999-01-01',
+      });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({
+        error: 'This ticket has no fix waiting for review',
+      });
+      expect(ticketsDb.scheduleReinspection).not.toHaveBeenCalled();
+      expect(db.get(ticketId)!.status).toBe(before);
+    },
+  );
+
+  it('refuses a schedule from a store owner and changes nothing (AC 12.6)', async () => {
+    const res = await review(4, 'ownerA', {
+      decision: 'reinspection_scheduled',
+      scheduledFor: '2999-01-01',
+    });
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({error: 'Access denied'});
+    expect(ticketsDb.scheduleReinspection).not.toHaveBeenCalled();
+    expect(db.get(4)!.status).toBe('pending_review');
   });
 });
