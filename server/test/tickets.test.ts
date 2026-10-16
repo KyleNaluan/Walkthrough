@@ -205,9 +205,20 @@ beforeEach(() => {
     },
   );
   vi.mocked(ticketsDb.reviewFix).mockImplementation(fakeReviewFix);
+  // review_fix also adds the re-inspection with its date.
   vi.mocked(ticketsDb.scheduleReinspection).mockImplementation(
-    (fixId, reviewerId, comment) =>
-      fakeReviewFix(fixId, reviewerId, 'reinspection_scheduled', comment),
+    async (fixId, reviewerId, comment, scheduledFor) => {
+      await fakeReviewFix(fixId, reviewerId, 'reinspection_scheduled', comment);
+      const t = [...db.values()].find((x) =>
+        x.fixes.some((f) => f.id === fixId),
+      )!;
+      t.reinspections.push({
+        id: 50,
+        scheduledFor,
+        outcome: 'pending',
+        inspectionId: null,
+      });
+    },
   );
 
   // Inspection 20 is at store 1, inspection 21 at store 3.
@@ -652,6 +663,14 @@ describe('POST /api/tickets/:ticketId/review: schedule a re-inspection (story 12
       null,
       '2999-01-01',
     );
+    expect(db.get(4)!.reinspections).toEqual([
+      {
+        id: 50,
+        scheduledFor: '2999-01-01',
+        outcome: 'pending',
+        inspectionId: null,
+      },
+    ]);
     expect(ticketsDb.reviewFix).not.toHaveBeenCalled();
   });
 
@@ -724,6 +743,10 @@ describe('POST /api/tickets/:ticketId/reinspection (story 12)', () => {
       20,
       'passed',
     );
+    expect(db.get(6)!.reinspections[1]).toMatchObject({
+      outcome: 'passed',
+      inspectionId: 20,
+    });
   });
 
   it('refuses a result from an inspection of another store (AC 12.2)', async () => {
@@ -795,6 +818,10 @@ describe('POST /api/tickets/:ticketId/reinspection (story 12)', () => {
       20,
       'failed',
     );
+    expect(db.get(6)!.reinspections[1]).toMatchObject({
+      outcome: 'failed',
+      inspectionId: 20,
+    });
     const again = await submitFix(6, 'ownerA');
     expect(again.status).toBe(201);
     expect(again.body.status).toBe('pending_review');
