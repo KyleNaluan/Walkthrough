@@ -137,7 +137,10 @@ beforeEach(() => {
     async (ticketId, fixId) =>
       db.get(ticketId)?.fixes.find((f) => f.id === fixId)?.photo ?? null,
   );
-  // The same checks as submit_fix in 002_status_functions.sql.
+  vi.mocked(ticketsDb.latestFixId).mockImplementation(
+    async (ticketId) => db.get(ticketId)?.fixes.at(-1)?.id ?? null,
+  );
+  // The same checks as submit_fix and review_fix in 002_status_functions.sql.
   vi.mocked(ticketsDb.submitFix).mockImplementation(
     async (ticketId, description, photo) => {
       const t = db.get(ticketId)!;
@@ -156,6 +159,23 @@ beforeEach(() => {
       return id;
     },
   );
+  vi.mocked(ticketsDb.reviewFix).mockImplementation(
+    async (fixId, reviewerId, decision, comment) => {
+      const t = [...db.values()].find((x) =>
+        x.fixes.some((f) => f.id === fixId),
+      )!;
+      if (t.status !== 'pending_review') {
+        throw p0001('This ticket has no fix waiting for review');
+      }
+      t.fixes.find((f) => f.id === fixId)!.review = {
+        decision,
+        comment,
+        reviewedAt: '2026-10-14T16:00:00Z',
+        reviewerId,
+      };
+      t.status = decision === 'approved' ? 'resolved' : 'changes_requested';
+    },
+  );
 });
 
 function submitFix(
@@ -172,6 +192,17 @@ function submitFix(
     .set(asUser(user))
     .field('description', description);
   return photo ? req.attach('photo', photo, filename) : req;
+}
+
+function review(
+  ticketId: number,
+  user: Parameters<typeof asUser>[0],
+  body: Record<string, unknown>,
+) {
+  return request(app)
+    .post(`/api/tickets/${ticketId}/review`)
+    .set(asUser(user))
+    .send(body);
 }
 
 describe('GET /api/tickets/:ticketId', () => {
@@ -394,5 +425,76 @@ describe('POST /api/tickets/:ticketId/fixes (story 9)', () => {
   it('sends 404 for a ticket that does not exist', async () => {
     const res = await submitFix(99, 'ownerA');
     expect(res.status).toBe(404);
+  });
+});
+
+describe('POST /api/tickets/:ticketId/review: approve (story 10)', () => {
+  it('saves the review with the inspector and time, and resolves the ticket (AC 10.1)', async () => {
+    const res = await review(4, 'inspector2', {decision: 'approved'});
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('resolved');
+    expect(res.body.overdue).toBe(false);
+    expect(res.body.fixes[0].review).toEqual({
+      decision: 'approved',
+      comment: null,
+      reviewedAt: '2026-10-14T16:00:00Z',
+      reviewerName: 'Ivan Checks',
+    });
+    expect(ticketsDb.reviewFix).toHaveBeenCalledWith(
+      11,
+      users.inspector2.id,
+      'approved',
+      null,
+    );
+  });
+
+  it('reviews the latest fix round (AC 10.1)', async () => {
+    await review(7, 'inspector', {decision: 'approved'});
+    expect(ticketsDb.reviewFix).toHaveBeenCalledWith(
+      13,
+      users.inspector.id,
+      'approved',
+      null,
+    );
+  });
+
+  it.each([1, 2, 5, 6])(
+    'changes nothing on ticket %i, which is not Pending review (AC 10.2)',
+    async (ticketId) => {
+      const before = db.get(ticketId)!.status;
+      const res = await review(ticketId, 'inspector', {decision: 'approved'});
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({
+        error: 'This ticket has no fix waiting for review',
+      });
+      expect(ticketsDb.reviewFix).not.toHaveBeenCalled();
+      expect(db.get(ticketId)!.status).toBe(before);
+    },
+  );
+
+  it('passes on the refusal if the status changed in the meantime (AC 10.2)', async () => {
+    vi.mocked(ticketsDb.reviewFix).mockRejectedValueOnce(
+      p0001('This ticket has no fix waiting for review'),
+    );
+    const res = await review(4, 'inspector', {decision: 'approved'});
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: 'This ticket has no fix waiting for review',
+    });
+  });
+
+  it('refuses an approval from a store owner and changes nothing (AC 10.3)', async () => {
+    const res = await review(4, 'ownerA', {decision: 'approved'});
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({error: 'Access denied'});
+    expect(ticketsDb.reviewFix).not.toHaveBeenCalled();
+    expect(db.get(4)!.status).toBe('pending_review');
+  });
+
+  it('refuses an unknown decision', async () => {
+    const res = await review(4, 'inspector', {decision: 'maybe'});
+    expect(res.status).toBe(400);
+    expect(res.body.fields).toHaveProperty('decision');
+    expect(ticketsDb.reviewFix).not.toHaveBeenCalled();
   });
 });

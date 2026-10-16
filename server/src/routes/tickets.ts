@@ -16,7 +16,7 @@ import {
   validatePhoto,
   type ValidPhoto,
 } from '../lib/photos.js';
-import {idParam, isOverdue, parseParams} from '../lib/validate.js';
+import {idParam, isOverdue, parseBody, parseParams} from '../lib/validate.js';
 import {requireRole, requireUser} from '../middleware/auth.js';
 
 // Stories 8-11 (ticket list, submit a fix, approve, request changes).
@@ -156,5 +156,32 @@ ticketsRouter.post(
       throw err;
     }
     res.status(201).json(await reloadTicket(ticketId));
+  },
+);
+
+// Story 10: approve a fix -----------------------------------------------------
+
+const NOTHING_TO_REVIEW = 'This ticket has no fix waiting for review';
+
+const reviewBody = z.object({
+  decision: z.enum(['approved'], 'Decision must be approved'),
+});
+
+ticketsRouter.post(
+  '/tickets/:ticketId/review',
+  requireUser,
+  requireRole('inspector'), // AC 10.3
+  async (req, res) => {
+    const {ticketId} = parseParams(ticketParams, req);
+    const {decision} = parseBody(reviewBody, req);
+    const ticket = await loadTicket(req.user!, ticketId);
+    const fixId = await tickets.latestFixId(ticketId);
+    if (ticket.status !== 'pending_review' || fixId == null) {
+      throw new HttpError(409, NOTHING_TO_REVIEW); // AC 10.2
+    }
+    // review_fix records the reviewer and time, and checks the status again
+    // (AC 10.1).
+    await tickets.reviewFix(fixId, req.user!.id, decision, null);
+    res.json(await reloadTicket(ticketId));
   },
 );

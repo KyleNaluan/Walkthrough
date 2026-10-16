@@ -1,4 +1,4 @@
-import {fireEvent, screen, waitFor} from '@testing-library/react';
+import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
@@ -233,5 +233,67 @@ describe('submit a fix (story 9)', () => {
       name: 'Raw chicken stored above salad',
     });
     expect(screen.queryByRole('button', {name: 'Submit fix'})).toBeNull();
+  });
+});
+
+describe('approve a fix (story 10)', () => {
+  it('approves the latest fix and shows the ticket Resolved with the reviewer (AC 10.1)', async () => {
+    const fetch = openTicket(
+      inspector,
+      ticket('pending_review', [pendingFix]),
+      {
+        '/api/tickets/4/review': ticket('resolved', [
+          {
+            ...pendingFix,
+            review: {
+              decision: 'approved',
+              comment: null,
+              reviewedAt: '2026-10-14T20:05:00Z',
+              reviewerName: 'Jordan Reyes',
+            },
+          },
+        ]),
+      },
+    );
+    fireEvent.click(await screen.findByRole('button', {name: 'Approve fix'}));
+
+    expect(await screen.findByText('Resolved')).toBeInTheDocument();
+    expect(
+      JSON.parse(sent(fetch, '/api/tickets/4/review')!.body as string),
+    ).toEqual({decision: 'approved'});
+    const round = screen.getByRole('group', {name: 'Fix 1'});
+    expect(within(round).getByText('Approved')).toBeInTheDocument();
+    expect(round).toHaveTextContent('by Jordan Reyes');
+    expect(screen.queryByRole('button', {name: 'Approve fix'})).toBeNull();
+  });
+
+  it('offers no review on a ticket that is not Pending review (AC 10.2)', async () => {
+    openTicket(inspector, ticket('open'));
+    await screen.findByRole('heading', {
+      name: 'Raw chicken stored above salad',
+    });
+    expect(screen.queryByRole('button', {name: 'Approve fix'})).toBeNull();
+  });
+
+  it('shows "This ticket has no fix waiting for review" if the server refuses (AC 10.2)', async () => {
+    openTicket(inspector, ticket('pending_review', [pendingFix]), {
+      '/api/tickets/4/review': Response.json(
+        {error: 'This ticket has no fix waiting for review'},
+        {status: 409},
+      ),
+    });
+    fireEvent.click(await screen.findByRole('button', {name: 'Approve fix'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This ticket has no fix waiting for review',
+    );
+    expect(screen.getByText('Pending review')).toBeInTheDocument();
+  });
+
+  it('offers a store owner no way to approve (AC 10.3)', async () => {
+    openTicket(owner, ticket('pending_review', [pendingFix]));
+    await screen.findByRole('heading', {
+      name: 'Raw chicken stored above salad',
+    });
+    expect(screen.queryByRole('button', {name: 'Approve fix'})).toBeNull();
   });
 });
