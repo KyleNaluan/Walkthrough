@@ -184,6 +184,26 @@ beforeEach(() => {
     (fixId, reviewerId, comment) =>
       fakeReviewFix(fixId, reviewerId, 'reinspection_scheduled', comment),
   );
+
+  // Inspection 20 is at store 1, inspection 21 at store 3.
+  vi.mocked(storesDb.storeIdForInspection).mockImplementation(
+    async (id) =>
+      new Map([
+        [20, 1],
+        [21, 3],
+      ]).get(id) ?? null,
+  );
+  // The same status check as record_reinspection in
+  // 003_reinspection_result.sql.
+  vi.mocked(ticketsDb.recordReinspection).mockImplementation(
+    async (ticketId, _inspectionId, outcome) => {
+      const t = db.get(ticketId)!;
+      if (t.status !== 'reinspection_scheduled') {
+        throw p0001('This ticket has no re-inspection scheduled');
+      }
+      t.status = outcome === 'passed' ? 'resolved' : 'changes_requested';
+    },
+  );
 });
 
 function submitFix(
@@ -436,6 +456,17 @@ describe('POST /api/tickets/:ticketId/fixes (story 9)', () => {
   });
 });
 
+function recordResult(
+  ticketId: number,
+  user: Parameters<typeof asUser>[0],
+  body: Record<string, unknown>,
+) {
+  return request(app)
+    .post(`/api/tickets/${ticketId}/reinspection`)
+    .set(asUser(user))
+    .send(body);
+}
+
 describe('POST /api/tickets/:ticketId/review: approve (story 10)', () => {
   it('saves the review with the inspector and time, and resolves the ticket (AC 10.1)', async () => {
     const res = await review(4, 'inspector2', {decision: 'approved'});
@@ -646,5 +677,110 @@ describe('POST /api/tickets/:ticketId/review: schedule a re-inspection (story 12
     expect(res.body).toEqual({error: 'Access denied'});
     expect(ticketsDb.scheduleReinspection).not.toHaveBeenCalled();
     expect(db.get(4)!.status).toBe('pending_review');
+  });
+});
+
+describe('POST /api/tickets/:ticketId/reinspection (story 12)', () => {
+  it('records a passed re-inspection and resolves the ticket (AC 12.2)', async () => {
+    const res = await recordResult(6, 'inspector2', {
+      inspectionId: 20,
+      outcome: 'passed',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('resolved');
+    expect(ticketsDb.recordReinspection).toHaveBeenCalledWith(6, 20, 'passed');
+  });
+
+  it('refuses a result from an inspection of another store (AC 12.2)', async () => {
+    const res = await recordResult(6, 'inspector', {
+      inspectionId: 21,
+      outcome: 'passed',
+    });
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: "This inspection is not of the ticket's store",
+    });
+    expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
+    expect(db.get(6)!.status).toBe('reinspection_scheduled');
+  });
+
+  it.each([1, 4, 5])(
+    'refuses a result for ticket %i, which has no re-inspection scheduled (AC 12.2)',
+    async (ticketId) => {
+      const before = db.get(ticketId)!.status;
+      const res = await recordResult(ticketId, 'inspector', {
+        inspectionId: 20,
+        outcome: 'passed',
+      });
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({
+        error: 'This ticket has no re-inspection scheduled',
+      });
+      expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
+      expect(db.get(ticketId)!.status).toBe(before);
+    },
+  );
+
+  it('records a failed re-inspection and the owner can submit another fix (AC 12.3)', async () => {
+    const res = await recordResult(6, 'inspector', {
+      inspectionId: 20,
+      outcome: 'failed',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('changes_requested');
+    expect(ticketsDb.recordReinspection).toHaveBeenCalledWith(6, 20, 'failed');
+    const again = await submitFix(6, 'ownerA');
+    expect(again.status).toBe(201);
+    expect(again.body.status).toBe('pending_review');
+  });
+
+  it('refuses a re-inspection result from a store owner and changes nothing (AC 12.6)', async () => {
+    const res = await recordResult(6, 'ownerA', {
+      inspectionId: 20,
+      outcome: 'passed',
+    });
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({error: 'Access denied'});
+    expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
+    expect(db.get(6)!.status).toBe('reinspection_scheduled');
+  });
+
+  it('refuses a result with no login', async () => {
+    const res = await request(app)
+      .post('/api/tickets/6/reinspection')
+      .send({inspectionId: 20, outcome: 'passed'});
+    expect(res.status).toBe(401);
+    expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unknown result', async () => {
+    const res = await recordResult(6, 'inspector', {
+      inspectionId: 20,
+      outcome: 'maybe',
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.fields).toEqual({
+      outcome: 'Result must be passed or failed',
+    });
+    expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
+  });
+
+  it('sends 404 for an inspection that does not exist', async () => {
+    const res = await recordResult(6, 'inspector', {
+      inspectionId: 99,
+      outcome: 'passed',
+    });
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({error: 'Inspection not found'});
+    expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
+  });
+
+  it('sends 404 for a ticket that does not exist', async () => {
+    const res = await recordResult(99, 'inspector', {
+      inspectionId: 20,
+      outcome: 'passed',
+    });
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({error: 'Ticket not found'});
   });
 });

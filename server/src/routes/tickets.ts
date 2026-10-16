@@ -3,6 +3,7 @@ import {z} from 'zod';
 import * as tickets from '../db/tickets.js';
 import type {AppUser, TicketDetail, TicketStatus} from '../db/types.js';
 import {
+  assertInspectionAccess,
   assertStoreAccess,
   assertTicketAccess,
   storeIdsVisibleTo,
@@ -212,6 +213,36 @@ ticketsRouter.post(
     } else {
       await tickets.reviewFix(fixId, req.user!.id, decision, comment || null);
     }
+    res.json(await reloadTicket(ticketId));
+  },
+);
+
+// Story 12: record a re-inspection --------------------------------------------
+
+const NOT_SCHEDULED = 'This ticket has no re-inspection scheduled';
+const WRONG_STORE = "This inspection is not of the ticket's store";
+
+const reinspectionBody = z.object({
+  inspectionId: idParam,
+  outcome: z.enum(['passed', 'failed'], 'Result must be passed or failed'),
+});
+
+ticketsRouter.post(
+  '/tickets/:ticketId/reinspection',
+  requireUser,
+  requireRole('inspector'), // AC 12.6
+  async (req, res) => {
+    const {ticketId} = parseParams(ticketParams, req);
+    const {inspectionId, outcome} = parseBody(reinspectionBody, req);
+    const ticket = await loadTicket(req.user!, ticketId);
+    const store = await assertInspectionAccess(req.user!, inspectionId);
+    if (store.id !== ticket.store.id) throw new HttpError(409, WRONG_STORE);
+    if (ticket.status !== 'reinspection_scheduled') {
+      throw new HttpError(409, NOT_SCHEDULED);
+    }
+    // record_reinspection links the visit and checks the status again
+    // (AC 12.2, 12.3).
+    await tickets.recordReinspection(ticketId, inspectionId, outcome);
     res.json(await reloadTicket(ticketId));
   },
 );

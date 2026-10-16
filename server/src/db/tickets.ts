@@ -296,3 +296,21 @@ export async function scheduleReinspection(
   });
   if (error) throw error;
 }
+
+/**
+ * Records a re-inspection as passed or failed and moves the ticket on in one
+ * step (record_reinspection in 003_reinspection_result.sql). A refusal is a
+ * P0001 error.
+ */
+export async function recordReinspection(
+  ticketId: number,
+  inspectionId: number,
+  outcome: 'passed' | 'failed',
+): Promise<void> {
+  const {error} = await getSupabaseAdmin().rpc('record_reinspection', {
+    p_ticket_id: ticketId,
+    p_inspection_id: inspectionId,
+    p_outcome: outcome,
+  });
+  if (error) throw error;
+}
