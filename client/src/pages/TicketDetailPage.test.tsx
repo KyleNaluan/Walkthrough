@@ -445,6 +445,15 @@ describe('schedule a re-inspection (story 12)', () => {
     ).toBeNull();
   });
 
+  it('tells an inspector where to record a scheduled re-inspection', async () => {
+    openTicket(inspector, ticket('reinspection_scheduled', [pendingFix]));
+    expect(
+      await screen.findByText(
+        'Start an inspection of this store to record the re-inspection result.',
+      ),
+    ).toBeInTheDocument();
+  });
+
   it('offers a store owner no Schedule re-inspection (AC 12.6)', async () => {
     openTicket(owner, ticket('pending_review', [pendingFix]));
     await screen.findByRole('heading', {

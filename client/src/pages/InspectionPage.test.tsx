@@ -1,4 +1,4 @@
-import {fireEvent, screen} from '@testing-library/react';
+import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {useNavigate} from 'react-router';
 import {describe, expect, it, vi} from 'vitest';
 import {resizeImage} from '../lib/resizeImage';
@@ -6,6 +6,7 @@ import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
 import {inspection, inspector, owner, stores, ticket} from '../test/users';
+import type {TicketSummary} from '../types';
 
 // Photos go up unchanged unless a test shrinks them.
 vi.mock('../lib/resizeImage', () => ({
@@ -89,6 +90,30 @@ function sentFindings(fetch: ReturnType<typeof stubApi>) {
   return fetch.mock.calls
     .filter(([path]) => path === '/api/inspections/7/tickets')
     .map(([, init]) => init!.body as FormData);
+}
+
+const duePath = '/api/tickets?status=reinspection_scheduled';
+
+/** Re-inspections due: tickets 4 and 5 at store 1, ticket 9 at store 3. */
+const due: TicketSummary[] = [
+  {id: 4, description: 'Hand sink blocked by boxes', store: stores[0]},
+  {id: 5, description: 'No thermometer in walk-in', store: stores[0]},
+  {id: 9, description: 'Cracked floor tile', store: stores[2]},
+].map(({id, description, store}) => ({
+  id,
+  description,
+  severity: 'medium',
+  deadline: '2099-01-15',
+  status: 'reinspection_scheduled',
+  overdue: false,
+  store: {id: store.id, name: store.name},
+}));
+
+/** The re-inspection results the page sent for ticket 4. */
+function sentResults(fetch: ReturnType<typeof stubApi>) {
+  return fetch.mock.calls
+    .filter(([path]) => path === '/api/tickets/4/reinspection')
+    .map(([, init]) => JSON.parse(init!.body as string));
 }
 
 describe('InspectionPage', () => {
@@ -451,5 +476,75 @@ describe('InspectionPage', () => {
       await screen.findByAltText('Raw chicken stored above salad'),
     ).toHaveAttribute('src', 'https://example.test/signed-2.png');
     expect(photoRequests(fetch)).toHaveLength(2);
+  });
+});
+
+describe('re-inspections (story 12)', () => {
+  it("lists this store's re-inspections and records one as passed (AC 12.2)", async () => {
+    const fetch = await openAsInspector({
+      [duePath]: due,
+      '/api/tickets/4/reinspection': {...due[0], status: 'resolved'},
+    });
+    const row = await screen.findByRole('group', {name: 'T-0004'});
+    expect(screen.getByRole('group', {name: 'T-0005'})).toBeInTheDocument();
+    expect(screen.queryByRole('group', {name: 'T-0009'})).toBeNull();
+
+    fireEvent.click(within(row).getByRole('button', {name: 'Passed'}));
+    expect(await within(row).findByText('Resolved')).toBeInTheDocument();
+    expect(within(row).queryByRole('button', {name: 'Passed'})).toBeNull();
+    expect(sentResults(fetch)).toEqual([{inspectionId: 7, outcome: 'passed'}]);
+    expect(
+      within(screen.getByRole('group', {name: 'T-0005'})).getByRole('button', {
+        name: 'Passed',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('shows no re-inspections section when none are due (AC 12.2)', async () => {
+    const fetch = await openAsInspector({[duePath]: [due[2]]});
+    await waitFor(() =>
+      expect(fetch.mock.calls.some(([path]) => path === duePath)).toBe(true),
+    );
+    expect(screen.queryByText('Re-inspections due')).toBeNull();
+    expect(screen.queryByRole('button', {name: 'Passed'})).toBeNull();
+  });
+
+  it('records a re-inspection as failed (AC 12.3)', async () => {
+    const fetch = await openAsInspector({
+      [duePath]: due,
+      '/api/tickets/4/reinspection': {...due[0], status: 'changes_requested'},
+    });
+    const row = await screen.findByRole('group', {name: 'T-0004'});
+    fireEvent.click(within(row).getByRole('button', {name: 'Failed'}));
+    expect(
+      await within(row).findByText('Changes requested'),
+    ).toBeInTheDocument();
+    expect(sentResults(fetch)).toEqual([{inspectionId: 7, outcome: 'failed'}]);
+  });
+
+  it('records a new finding on a re-inspection without changing the re-inspected ticket (AC 12.4)', async () => {
+    const fetch = await openAsInspector({
+      [duePath]: due,
+      '/api/inspections/7/tickets': Response.json(ticket, {status: 201}),
+    });
+    const row = await screen.findByRole('group', {name: 'T-0004'});
+    saveFinding();
+    expect(await screen.findByText('T-0012')).toBeInTheDocument();
+    expect(sentFindings(fetch)).toHaveLength(1);
+    expect(
+      within(row).getByText('Re-inspection scheduled'),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByRole('button', {name: 'Passed'}),
+    ).toBeInTheDocument();
+    expect(sentResults(fetch)).toEqual([]);
+  });
+
+  it('shows a store owner no re-inspection buttons (AC 12.6)', async () => {
+    const fetch = stubApi({'/api/inspections/7': inspection, [duePath]: due});
+    renderWithAuth(<AppRoutes />, {user: owner, route: '/inspections/7'});
+    expect(await screen.findByText('INS-0007')).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Passed'})).toBeNull();
+    expect(fetch.mock.calls.some(([path]) => path === duePath)).toBe(false);
   });
 });
