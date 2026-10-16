@@ -2,11 +2,15 @@ import type {NextFunction, Request, Response} from 'express';
 import multer from 'multer';
 import {ZodError} from 'zod';
 
-/** An error with the HTTP status and message to send to the client. */
+/**
+ * An error with the HTTP status and message to send to the client. `fields`
+ * names the form fields at fault, like a Zod error's, so forms can mark them.
+ */
 export class HttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly fields?: Record<string, string>,
   ) {
     super(message);
     this.name = 'HttpError';
@@ -48,7 +52,13 @@ export function errorHandler(
   _next: NextFunction,
 ): void {
   if (err instanceof HttpError) {
-    res.status(err.status).json({error: err.message});
+    res
+      .status(err.status)
+      .json(
+        err.fields
+          ? {error: err.message, fields: err.fields}
+          : {error: err.message},
+      );
     return;
   }
   if (err instanceof ZodError) {

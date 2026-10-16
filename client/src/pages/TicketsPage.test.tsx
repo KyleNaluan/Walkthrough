@@ -1,10 +1,10 @@
-import {fireEvent, screen, within} from '@testing-library/react';
+import {fireEvent, screen, waitFor, within} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
 import {inspector, owner} from '../test/users';
-import type {TicketSummary} from '../types';
+import type {TicketDetail, TicketSummary} from '../types';
 
 function summary(
   id: number,
@@ -173,5 +173,33 @@ describe('TicketsPage (story 8)', () => {
     });
     renderWithAuth(<AppRoutes />, {user: inspector, route: '/tickets'});
     expect(await screen.findByRole('alert')).toHaveTextContent('Server down');
+  });
+
+  it('opens a ticket and comes back to the list', async () => {
+    const detail: TicketDetail = {
+      ...tickets[2],
+      recordedAt: '2026-10-01T15:00:00Z',
+      inspectionId: 1,
+      fixes: [],
+    };
+    stubApi({
+      '/api/tickets': tickets,
+      '/api/tickets/2': detail,
+      '/api/tickets/2/photo': {url: 'https://signed.test/2.png'},
+    });
+    renderWithAuth(<AppRoutes />, {user: inspector, route: '/tickets'});
+    await screen.findByText('3 tickets');
+
+    fireEvent.click(
+      screen.getByRole('link', {name: /No date labels on prepared foods/}),
+    );
+    expect(
+      await screen.findByRole('heading', {
+        name: 'No date labels on prepared foods',
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('link', {name: 'Back to tickets'}));
+    await waitFor(() => expect(screen.getByText('3 tickets')).toBeVisible());
   });
 });
