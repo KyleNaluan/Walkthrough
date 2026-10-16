@@ -131,6 +131,12 @@ export function ReviewForm({
           dateParser={parseDate}
           minDate={today()}
           {...form.getInputProps('scheduledFor')}
+          // Enter here schedules; it must not submit the form as an approval.
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            void review('reinspection_scheduled');
+          }}
         />
         <Button
           color="grape"

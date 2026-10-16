@@ -1,4 +1,5 @@
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {describe, expect, it} from 'vitest';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
@@ -398,6 +399,24 @@ describe('schedule a re-inspection (story 12)', () => {
       within(round).getByText('Re-inspection scheduled'),
     ).toBeInTheDocument();
     expect(round).toHaveTextContent('by Jordan Reyes');
+  });
+
+  it('schedules, and never approves, when Enter is pressed in the date field (AC 12.1)', async () => {
+    const fetch = openTicket(
+      inspector,
+      ticket('pending_review', [pendingFix]),
+      {'/api/tickets/4/review': ticket('reinspection_scheduled', [pendingFix])},
+    );
+    await userEvent.type(
+      await screen.findByLabelText('Re-inspection date'),
+      '2099-01-20{Enter}',
+    );
+    await waitFor(() =>
+      expect(sent(fetch, '/api/tickets/4/review')).toBeDefined(),
+    );
+    expect(
+      JSON.parse(sent(fetch, '/api/tickets/4/review')!.body as string),
+    ).toEqual({decision: 'reinspection_scheduled', scheduledFor: '2099-01-20'});
   });
 
   it('marks a missing re-inspection date and sends nothing (AC 12.1)', async () => {
