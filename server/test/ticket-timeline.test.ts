@@ -33,6 +33,22 @@ describe('getTicket query (story 13)', () => {
     reinspection: [],
   };
 
+  it('asks for the fixes with their reviews and each re-inspection with its visit (AC 13.1)', async () => {
+    const calls = fakeQuery(dbRow);
+    await ticketsDb.getTicket(4);
+    const select = calls.find(([name]) => name === 'select')![1] as string;
+    expect(select.replace(/\s/g, '')).toBe(
+      'ticket_id,description,severity,deadline,recorded_at,status,' +
+        'inspection_id,inspection!inner(store!inner(store_id,name)),' +
+        'fix_submission(fix_submission_id,description,submitted_at,' +
+        'review_decision,review_comment,reviewed_at,' +
+        'reviewer:app_user(first_name,last_name)),' +
+        'reinspection(reinspection_id,scheduled_for,outcome,created_at,' +
+        'visit:inspection(inspection_id,started_at,' +
+        'inspector:app_user(first_name,last_name)))',
+    );
+  });
+
   it('gives each re-inspection with its date and visit, oldest first (AC 13.1)', async () => {
     const calls = fakeQuery({
       ...dbRow,
