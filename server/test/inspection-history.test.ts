@@ -153,6 +153,15 @@ describe('listInspectionsForStore query', () => {
     ]);
     expect(result).toEqual([history[0]]);
   });
+
+  it("asks the database for each inspection's inspector name and number of findings (AC 14.1)", async () => {
+    const calls = fakeQuery([]);
+    await inspectionsDb.listInspectionsForStore(3);
+    expect(calls).toContainEqual([
+      'select',
+      'inspection_id, started_at, inspector:app_user(first_name, last_name), ticket(count)',
+    ]);
+  });
 });
 
 describe('GET /api/inspections/:inspectionId (story 14)', () => {
