@@ -109,12 +109,13 @@ describe('TicketDetailPage', () => {
     );
   });
 
-  it("shows the server's message when the ticket can't be opened", async () => {
+  it("shows the server's message when the ticket can't be opened (AC 13.3)", async () => {
     openTicket(owner, ticket('open'), {
       '/api/tickets/4': Response.json({error: 'Access denied'}, {status: 403}),
     });
     expect(await screen.findByRole('alert')).toHaveTextContent('Access denied');
     expect(screen.queryByText('Raw chicken stored above salad')).toBeNull();
+    expect(screen.queryByRole('heading', {name: 'Timeline'})).toBeNull();
   });
 });
 
@@ -502,5 +503,44 @@ describe('schedule a re-inspection (story 12)', () => {
     expect(
       screen.queryByRole('button', {name: 'Schedule re-inspection'}),
     ).toBeNull();
+  });
+});
+
+describe('ticket timeline (story 13)', () => {
+  /** The timeline's items, top to bottom. */
+  function timeline() {
+    return screen
+      .getAllByRole('group')
+      .map((item) => item.getAttribute('aria-label'));
+  }
+
+  it('shows the owner their ticket with only the finding when there is no fix (AC 13.2, 13.4)', async () => {
+    openTicket(owner, ticket('open'));
+    expect(
+      await screen.findByRole('heading', {
+        name: 'Raw chicken stored above salad',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', {name: 'Timeline'})).toBeInTheDocument();
+    expect(timeline()).toEqual(['Finding']);
+    expect(screen.getByRole('group', {name: 'Finding'})).toHaveTextContent(
+      'Finding recorded',
+    );
+    expect(screen.getByRole('group', {name: 'Finding'})).toHaveTextContent(
+      'Sep 30, 2026',
+    );
+  });
+
+  it('shows "Ticket not found" for a ticket that does not exist (AC 13.5)', async () => {
+    openTicket(inspector, ticket('open'), {
+      '/api/tickets/4': Response.json(
+        {error: 'Ticket not found'},
+        {status: 404},
+      ),
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Ticket not found',
+    );
+    expect(screen.queryByRole('heading', {name: 'Timeline'})).toBeNull();
   });
 });
