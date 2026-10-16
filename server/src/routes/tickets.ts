@@ -159,12 +159,17 @@ ticketsRouter.post(
   },
 );
 
-// Story 10: approve a fix -----------------------------------------------------
+// Stories 10 and 11: approve or request changes ------------------------------
 
 const NOTHING_TO_REVIEW = 'This ticket has no fix waiting for review';
+const COMMENT_REQUIRED = 'A comment is required to request changes';
 
 const reviewBody = z.object({
-  decision: z.enum(['approved'], 'Decision must be approved'),
+  decision: z.enum(
+    ['approved', 'changes_requested'],
+    'Decision must be approved or changes_requested',
+  ),
+  comment: z.string('Comment must be text').trim().optional(),
 });
 
 ticketsRouter.post(
@@ -173,15 +178,19 @@ ticketsRouter.post(
   requireRole('inspector'), // AC 10.3
   async (req, res) => {
     const {ticketId} = parseParams(ticketParams, req);
-    const {decision} = parseBody(reviewBody, req);
+    const {decision, comment} = parseBody(reviewBody, req);
+    if (decision === 'changes_requested' && !comment) {
+      throw new HttpError(400, COMMENT_REQUIRED, {comment: COMMENT_REQUIRED}); // AC 11.2
+    }
+
     const ticket = await loadTicket(req.user!, ticketId);
     const fixId = await tickets.latestFixId(ticketId);
     if (ticket.status !== 'pending_review' || fixId == null) {
       throw new HttpError(409, NOTHING_TO_REVIEW); // AC 10.2
     }
     // review_fix records the reviewer and time, and checks the status again
-    // (AC 10.1).
-    await tickets.reviewFix(fixId, req.user!.id, decision, null);
+    // (AC 10.1, 11.1).
+    await tickets.reviewFix(fixId, req.user!.id, decision, comment || null);
     res.json(await reloadTicket(ticketId));
   },
 );

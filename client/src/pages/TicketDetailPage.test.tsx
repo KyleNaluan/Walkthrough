@@ -138,7 +138,7 @@ describe('submit a fix (story 9)', () => {
     ).toBeInTheDocument();
   });
 
-  it('keeps earlier rounds when the owner sends another fix after changes were requested (AC 9.2)', async () => {
+  it('shows the requested changes and keeps earlier rounds when the owner sends another fix (AC 9.2, 11.3)', async () => {
     openTicket(owner, ticket('changes_requested', [reviewedFix]), {
       '/api/tickets/4/fixes': ticket('pending_review', [
         reviewedFix,
@@ -146,7 +146,11 @@ describe('submit a fix (story 9)', () => {
       ]),
     });
     expect(
-      await screen.findByRole('heading', {name: 'Submit another fix'}),
+      await screen.findByText('Changes requested by Jordan Reyes'),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText(comment)[0]).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {name: 'Submit another fix'}),
     ).toBeInTheDocument();
 
     await fillFix('Moved it to the bottom shelf.');
@@ -289,11 +293,62 @@ describe('approve a fix (story 10)', () => {
     expect(screen.getByText('Pending review')).toBeInTheDocument();
   });
 
-  it('offers a store owner no way to approve (AC 10.3)', async () => {
+  it('offers a store owner no way to approve or request changes (AC 10.3)', async () => {
     openTicket(owner, ticket('pending_review', [pendingFix]));
     await screen.findByRole('heading', {
       name: 'Raw chicken stored above salad',
     });
     expect(screen.queryByRole('button', {name: 'Approve fix'})).toBeNull();
+    expect(screen.queryByRole('button', {name: 'Request changes'})).toBeNull();
   });
+});
+
+describe('request changes (story 11)', () => {
+  it('sends the comment and shows the ticket as Changes requested (AC 11.1)', async () => {
+    const fetch = openTicket(
+      inspector,
+      ticket('pending_review', [pendingFix]),
+      {
+        '/api/tickets/4/review': ticket('changes_requested', [
+          {...pendingFix, review: reviewedFix.review},
+        ]),
+      },
+    );
+    fireEvent.change(await screen.findByLabelText('Comment'), {
+      target: {value: `  ${comment} `},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Request changes'}));
+
+    expect(
+      await screen.findByText('Changes requested by Jordan Reyes'),
+    ).toBeInTheDocument();
+    expect(
+      JSON.parse(sent(fetch, '/api/tickets/4/review')!.body as string),
+    ).toEqual({decision: 'changes_requested', comment});
+    expect(screen.queryByRole('button', {name: 'Request changes'})).toBeNull();
+  });
+
+  it.each(['', '   '])(
+    'marks the comment as required and sends nothing for %j (AC 11.2)',
+    async (value) => {
+      const fetch = openTicket(
+        inspector,
+        ticket('pending_review', [pendingFix]),
+      );
+      fireEvent.change(await screen.findByLabelText('Comment'), {
+        target: {value},
+      });
+      fireEvent.click(screen.getByRole('button', {name: 'Request changes'}));
+      expect(
+        await screen.findByText('A comment is required to request changes'),
+      ).toBeInTheDocument();
+      expect(screen.getByLabelText('Comment')).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      );
+      await waitFor(() =>
+        expect(sent(fetch, '/api/tickets/4/review')).toBeUndefined(),
+      );
+    },
+  );
 });

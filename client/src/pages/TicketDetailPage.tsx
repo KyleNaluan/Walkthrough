@@ -1,5 +1,6 @@
-import {Anchor, Box, Group, SimpleGrid, Text} from '@mantine/core';
+import {Alert, Anchor, Box, Group, SimpleGrid, Text} from '@mantine/core';
 import {
+  IconArrowBackUp,
   IconArrowLeft,
   IconCircleCheck,
   IconHourglass,
@@ -67,6 +68,7 @@ function Ticket({
     (ticket.status === 'open' || ticket.status === 'changes_requested');
   const canReview =
     user?.role === 'inspector' && ticket.status === 'pending_review';
+  const latestReview = ticket.fixes.at(-1)?.review;
 
   return (
     <>
@@ -79,6 +81,19 @@ function Ticket({
         <SeverityBadge severity={ticket.severity} />
         {ticket.overdue && <OverdueBadge />}
       </Group>
+
+      {/* AC 11.3: the owner sees what still needs to be done. */}
+      {ticket.status === 'changes_requested' && latestReview?.comment && (
+        <Alert
+          color="red"
+          variant="light"
+          mb="md"
+          icon={<IconArrowBackUp size={18} />}
+          title={`Changes requested by ${latestReview.reviewerName}`}
+        >
+          {latestReview.comment}
+        </Alert>
+      )}
 
       <Section title="Finding">
         <SimpleGrid cols={{base: 1, xs: 2}} spacing="sm">
@@ -141,8 +156,8 @@ function Ticket({
 /**
  * One ticket: the finding, every fix round and its review, and the next
  * step for whoever is looking. Owners submit fixes (story 9); inspectors
- * approve them (story 10). The server checks access and status for each
- * step.
+ * approve (story 10) or request changes (story 11). The server checks
+ * access and status for each step.
  */
 export function TicketDetailPage() {
   const {ticketId} = useParams();

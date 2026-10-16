@@ -458,6 +458,16 @@ describe('POST /api/tickets/:ticketId/review: approve (story 10)', () => {
     );
   });
 
+  it('keeps an optional comment on an approval', async () => {
+    await review(4, 'inspector', {decision: 'approved', comment: ' Good. '});
+    expect(ticketsDb.reviewFix).toHaveBeenCalledWith(
+      11,
+      users.inspector.id,
+      'approved',
+      'Good.',
+    );
+  });
+
   it.each([1, 2, 5, 6])(
     'changes nothing on ticket %i, which is not Pending review (AC 10.2)',
     async (ticketId) => {
@@ -496,5 +506,60 @@ describe('POST /api/tickets/:ticketId/review: approve (story 10)', () => {
     expect(res.status).toBe(400);
     expect(res.body.fields).toHaveProperty('decision');
     expect(ticketsDb.reviewFix).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /api/tickets/:ticketId/review: request changes (story 11)', () => {
+  it('saves the review and comment and marks the ticket Changes requested (AC 11.1)', async () => {
+    const res = await review(4, 'inspector', {
+      decision: 'changes_requested',
+      comment: 'The sink is still dirty.',
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.status).toBe('changes_requested');
+    expect(res.body.fixes[0].review).toMatchObject({
+      decision: 'changes_requested',
+      comment: 'The sink is still dirty.',
+      reviewerName: 'Ina Spector',
+    });
+  });
+
+  it.each([undefined, '', '   '])(
+    'refuses comment %j, marks the comment field and saves nothing (AC 11.2)',
+    async (comment) => {
+      const res = await review(4, 'inspector', {
+        decision: 'changes_requested',
+        comment,
+      });
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: 'A comment is required to request changes',
+        fields: {comment: 'A comment is required to request changes'},
+      });
+      expect(ticketsDb.reviewFix).not.toHaveBeenCalled();
+      expect(db.get(4)!.status).toBe('pending_review');
+    },
+  );
+
+  it('lets the owner see the comment and submit another fix (AC 11.3)', async () => {
+    await review(4, 'inspector', {
+      decision: 'changes_requested',
+      comment: 'The sink is still dirty.',
+    });
+    const seen = await request(app).get('/api/tickets/4').set(asUser('ownerA'));
+    expect(seen.body.fixes.at(-1).review.comment).toBe(
+      'The sink is still dirty.',
+    );
+    const again = await submitFix(4, 'ownerA');
+    expect(again.status).toBe(201);
+    expect(again.body.fixes).toHaveLength(2);
+  });
+
+  it('refuses a request for changes from a store owner', async () => {
+    const res = await review(4, 'ownerA', {
+      decision: 'changes_requested',
+      comment: 'x',
+    });
+    expect(res.status).toBe(403);
   });
 });
