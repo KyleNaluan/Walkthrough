@@ -352,3 +352,106 @@ describe('request changes (story 11)', () => {
     },
   );
 });
+
+describe('schedule a re-inspection (story 12)', () => {
+  function chooseDate(value: string) {
+    const input = screen.getByLabelText('Re-inspection date');
+    fireEvent.change(input, {target: {value}});
+    fireEvent.blur(input);
+  }
+
+  it('schedules a re-inspection and shows the ticket as Re-inspection scheduled (AC 12.1)', async () => {
+    const fetch = openTicket(
+      inspector,
+      ticket('pending_review', [pendingFix]),
+      {
+        '/api/tickets/4/review': ticket('reinspection_scheduled', [
+          {
+            ...pendingFix,
+            review: {
+              decision: 'reinspection_scheduled',
+              comment: null,
+              reviewedAt: '2026-10-14T20:05:00Z',
+              reviewerName: 'Jordan Reyes',
+            },
+          },
+        ]),
+      },
+    );
+    await screen.findByRole('button', {name: 'Schedule re-inspection'});
+    chooseDate('2099-01-20');
+    fireEvent.click(
+      screen.getByRole('button', {name: 'Schedule re-inspection'}),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', {name: 'Schedule re-inspection'}),
+      ).toBeNull(),
+    );
+    expect(
+      JSON.parse(sent(fetch, '/api/tickets/4/review')!.body as string),
+    ).toEqual({decision: 'reinspection_scheduled', scheduledFor: '2099-01-20'});
+    expect(screen.getAllByText('Re-inspection scheduled')).toHaveLength(2);
+    const round = screen.getByRole('group', {name: 'Fix 1'});
+    expect(
+      within(round).getByText('Re-inspection scheduled'),
+    ).toBeInTheDocument();
+    expect(round).toHaveTextContent('by Jordan Reyes');
+  });
+
+  it('marks a missing re-inspection date and sends nothing (AC 12.1)', async () => {
+    const fetch = openTicket(inspector, ticket('pending_review', [pendingFix]));
+    fireEvent.click(
+      await screen.findByRole('button', {name: 'Schedule re-inspection'}),
+    );
+    expect(
+      await screen.findByText('A re-inspection date is required'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText('Re-inspection date')).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+    await waitFor(() =>
+      expect(sent(fetch, '/api/tickets/4/review')).toBeUndefined(),
+    );
+  });
+
+  it('shows "This ticket has no fix waiting for review" if the server refuses a schedule (AC 12.5)', async () => {
+    openTicket(inspector, ticket('pending_review', [pendingFix]), {
+      '/api/tickets/4/review': Response.json(
+        {error: 'This ticket has no fix waiting for review'},
+        {status: 409},
+      ),
+    });
+    await screen.findByRole('button', {name: 'Schedule re-inspection'});
+    chooseDate('2099-01-20');
+    fireEvent.click(
+      screen.getByRole('button', {name: 'Schedule re-inspection'}),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'This ticket has no fix waiting for review',
+    );
+    expect(screen.getByText('Pending review')).toBeInTheDocument();
+  });
+
+  it('offers no Schedule re-inspection on a ticket that is not Pending review (AC 12.5)', async () => {
+    openTicket(inspector, ticket('reinspection_scheduled', [pendingFix]));
+    await screen.findByRole('heading', {
+      name: 'Raw chicken stored above salad',
+    });
+    expect(
+      screen.queryByRole('button', {name: 'Schedule re-inspection'}),
+    ).toBeNull();
+  });
+
+  it('offers a store owner no Schedule re-inspection (AC 12.6)', async () => {
+    openTicket(owner, ticket('pending_review', [pendingFix]));
+    await screen.findByRole('heading', {
+      name: 'Raw chicken stored above salad',
+    });
+    expect(
+      screen.queryByRole('button', {name: 'Schedule re-inspection'}),
+    ).toBeNull();
+  });
+});
