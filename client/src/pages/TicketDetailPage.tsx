@@ -92,17 +92,19 @@ function Ticket({
       </Group>
 
       {/* AC 11.3: the owner sees what still needs to be done. */}
-      {ticket.status === 'changes_requested' && latestReview?.comment && (
-        <Alert
-          color="red"
-          variant="light"
-          mb="md"
-          icon={<IconArrowBackUp size={18} />}
-          title={`Changes requested by ${latestReview.reviewerName}`}
-        >
-          {latestReview.comment}
-        </Alert>
-      )}
+      {ticket.status === 'changes_requested' &&
+        latestReview?.decision === 'changes_requested' &&
+        latestReview.comment && (
+          <Alert
+            color="red"
+            variant="light"
+            mb="md"
+            icon={<IconArrowBackUp size={18} />}
+            title={`Changes requested by ${latestReview.reviewerName}`}
+          >
+            {latestReview.comment}
+          </Alert>
+        )}
 
       <Section title="Finding">
         <SimpleGrid cols={{base: 1, xs: 2}} spacing="sm">

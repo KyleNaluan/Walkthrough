@@ -417,6 +417,27 @@ describe('schedule a re-inspection (story 12)', () => {
     );
   });
 
+  it('lets the owner submit another fix after a failed re-inspection (AC 12.3)', async () => {
+    openTicket(
+      owner,
+      ticket('changes_requested', [
+        {
+          ...pendingFix,
+          review: {
+            decision: 'reinspection_scheduled',
+            comment: 'Check the walk-in on the visit too.',
+            reviewedAt: '2026-10-14T20:05:00Z',
+            reviewerName: 'Jordan Reyes',
+          },
+        },
+      ]),
+    );
+    expect(
+      await screen.findByLabelText(/What did you fix/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Changes requested by/)).toBeNull();
+  });
+
   it('shows "This ticket has no fix waiting for review" if the server refuses a schedule (AC 12.5)', async () => {
     openTicket(inspector, ticket('pending_review', [pendingFix]), {
       '/api/tickets/4/review': Response.json(
