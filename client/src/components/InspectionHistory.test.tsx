@@ -1,9 +1,9 @@
-import {screen, within} from '@testing-library/react';
+import {fireEvent, screen, within} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
-import {inspector, owner, stores} from '../test/users';
+import {inspection, inspector, owner, stores, ticket} from '../test/users';
 import type {InspectionSummary} from '../types';
 
 /** Store 1's inspections, newest first, as the server sends them. */
@@ -68,5 +68,45 @@ describe('InspectionHistory', () => {
       'Internal server error',
     );
     expect(screen.getByText('1 Main St')).toBeInTheDocument();
+  });
+
+  it('opens a past inspection from the history and shows its findings with their status (AC 14.2)', async () => {
+    stubApi({
+      '/api/stores/1': stores[0],
+      '/api/stores/1/inspections': history,
+      '/api/inspections/7': {
+        ...inspection,
+        tickets: [
+          ticket,
+          {
+            ...ticket,
+            id: 13,
+            description: 'No soap at hand sink',
+            status: 'resolved',
+          },
+        ],
+      },
+    });
+    renderWithAuth(<AppRoutes />, {user: owner, route: '/stores/1'});
+    fireEvent.click(await screen.findByRole('link', {name: /INS-0007/}));
+    const first = (await screen.findByText('Raw chicken stored above salad'))
+      .parentElement!;
+    expect(first).toHaveTextContent('Open');
+    const second = screen.getByText('No soap at hand sink').parentElement!;
+    expect(second).toHaveTextContent('Resolved');
+  });
+
+  it('shows "Access denied" and asks for no history of another owner\'s store (AC 14.4)', async () => {
+    const fetch = stubApi({
+      '/api/stores/3': Response.json({error: 'Access denied'}, {status: 403}),
+      '/api/stores/3/inspections': history,
+    });
+    renderWithAuth(<AppRoutes />, {user: owner, route: '/stores/3'});
+    expect(await screen.findByRole('alert')).toHaveTextContent('Access denied');
+    expect(fetch).not.toHaveBeenCalledWith(
+      '/api/stores/3/inspections',
+      expect.anything(),
+    );
+    expect(screen.queryByText(/INS-/)).not.toBeInTheDocument();
   });
 });
