@@ -625,6 +625,32 @@ describe('ticket timeline (story 13)', () => {
     ).toHaveTextContent('Sep 30, 2026');
   });
 
+  it('orders events less than a millisecond apart by their real time (AC 13.1)', async () => {
+    openTicket(
+      inspector,
+      ticket(
+        'pending_review',
+        [
+          scheduledFix,
+          {...pendingFix, submittedAt: '2026-10-05T15:00:00.000900Z'},
+        ],
+        [
+          {
+            ...failed,
+            visit: {...failed.visit!, startedAt: '2026-10-05T15:00:00.000100Z'},
+          },
+        ],
+      ),
+    );
+    await screen.findByRole('heading', {name: 'Timeline'});
+    expect(timeline()).toEqual([
+      'Finding',
+      'Fix 1',
+      'Re-inspection 1',
+      'Fix 2',
+    ]);
+  });
+
   it('shows the owner their ticket with only the finding when there is no fix (AC 13.2, 13.4)', async () => {
     openTicket(owner, ticket('open'));
     expect(

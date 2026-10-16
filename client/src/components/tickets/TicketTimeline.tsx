@@ -81,9 +81,21 @@ function Fix({
   );
 }
 
+/**
+ * A timestamp in microseconds. Postgres keeps microseconds, which
+ * Date.parse drops, so events less than a millisecond apart stay in order.
+ */
+function microseconds(timestamp: string): number {
+  const fraction = /\.(\d+)/.exec(timestamp)?.[1] ?? '';
+  return (
+    Date.parse(timestamp.replace(/\.\d+/, '')) * 1000 +
+    Number(fraction.slice(0, 6).padEnd(6, '0'))
+  );
+}
+
 interface Entry {
   key: string;
-  /** When it happened, for the order. */
+  /** When it happened, in microseconds, for the order. */
   at: number;
   label: string;
   title: string;
@@ -99,8 +111,8 @@ function reinspectionEntry(reinspection: Reinspection, number: number): Entry {
     key: `reinspection-${reinspection.id}`,
     // Never before the review that scheduled it.
     at: Math.max(
-      Date.parse(reinspection.createdAt),
-      visit ? Date.parse(visit.startedAt) : 0,
+      microseconds(reinspection.createdAt),
+      visit ? microseconds(visit.startedAt) : 0,
     ),
     label: `Re-inspection ${number}`,
     title: label,
@@ -125,14 +137,14 @@ function entries(ticket: TicketDetail): Entry[] {
   return [
     {
       key: 'finding',
-      at: Date.parse(ticket.recordedAt),
+      at: microseconds(ticket.recordedAt),
       label: 'Finding',
       title: 'Finding recorded',
       date: formatDateTime(ticket.recordedAt),
     },
     ...ticket.fixes.map((fix, index) => ({
       key: `fix-${fix.id}`,
-      at: Date.parse(fix.submittedAt),
+      at: microseconds(fix.submittedAt),
       label: `Fix ${index + 1}`,
       title: `Fix ${index + 1} submitted`,
       date: formatDateTime(fix.submittedAt),
