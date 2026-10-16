@@ -31,6 +31,7 @@ function row(
     deadline,
     status,
     store: {id: storeId, name: stores[storeId - 1].name},
+    reinspectionId: null,
   };
 }
 
@@ -78,6 +79,7 @@ describe('GET /api/tickets (story 8)', () => {
       status: 'pending_review',
       overdue: false,
       store: {id: 3, name: 'River Market'},
+      reinspectionId: null,
     });
   });
 
@@ -179,6 +181,7 @@ describe('listTickets query', () => {
     deadline: '2026-10-20',
     status: 'open',
     inspection: {store_id: 2, store: {store_id: 2, name: 'Westport Cafe'}},
+    reinspection: [],
   };
 
   it('sorts by deadline, earliest first, then by ID (AC 8.3)', async () => {
@@ -198,8 +201,24 @@ describe('listTickets query', () => {
         deadline: '2026-10-20',
         status: 'open',
         store: {id: 2, name: 'Westport Cafe'},
+        reinspectionId: null,
       },
     ]);
+  });
+
+  it('gives each ticket the ID of its re-inspection waiting for a result (AC 12.2)', async () => {
+    fakeQuery([
+      {
+        ...dbRow,
+        status: 'reinspection_scheduled',
+        reinspection: [
+          {reinspection_id: 3, outcome: 'failed'},
+          {reinspection_id: 8, outcome: 'pending'},
+        ],
+      },
+    ]);
+    const [ticket] = await ticketsDb.listTickets({storeIds: null});
+    expect(ticket.reinspectionId).toBe(8);
   });
 
   it("limits an owner's list to their stores and filters by status (AC 8.2, 8.4)", async () => {

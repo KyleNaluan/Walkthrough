@@ -77,7 +77,10 @@ export interface Ticket {
   inspectionId: number;
 }
 
-/** A row of the ticket list (story 8). */
+/**
+ * A row of the ticket list (story 8), with the ID of the re-inspection
+ * waiting for a result, if any (story 12).
+ */
 export interface TicketSummary {
   id: number;
   description: string;
@@ -86,6 +89,7 @@ export interface TicketSummary {
   status: TicketStatus;
   overdue: boolean;
   store: {id: number; name: string};
+  reinspectionId: number | null;
 }
 
 /** An inspector's decision on one fix round. Photo paths are never sent. */

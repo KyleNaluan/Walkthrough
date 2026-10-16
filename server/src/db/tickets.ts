@@ -84,6 +84,10 @@ interface TicketListRow {
   deadline: string;
   status: TicketStatus;
   inspection: {store: {store_id: number; name: string}};
+  reinspection: {
+    reinspection_id: number;
+    outcome: 'pending' | 'passed' | 'failed';
+  }[];
 }
 
 /**
@@ -102,7 +106,8 @@ export async function listTickets({
     .from('ticket')
     .select(
       `ticket_id, description, severity, deadline, status,
-       inspection!inner(store_id, store!inner(store_id, name))`,
+       inspection!inner(store_id, store!inner(store_id, name)),
+       reinspection(reinspection_id, outcome)`,
     );
   if (storeIds) query = query.in('inspection.store_id', storeIds);
   if (status) query = query.eq('status', status);
@@ -121,6 +126,9 @@ export async function listTickets({
       id: row.inspection.store.store_id,
       name: row.inspection.store.name,
     },
+    reinspectionId:
+      row.reinspection.find((r) => r.outcome === 'pending')?.reinspection_id ??
+      null,
   }));
 }
 
@@ -304,11 +312,13 @@ export async function scheduleReinspection(
  */
 export async function recordReinspection(
   ticketId: number,
+  reinspectionId: number,
   inspectionId: number,
   outcome: 'passed' | 'failed',
 ): Promise<void> {
   const {error} = await getSupabaseAdmin().rpc('record_reinspection', {
     p_ticket_id: ticketId,
+    p_reinspection_id: reinspectionId,
     p_inspection_id: inspectionId,
     p_outcome: outcome,
   });

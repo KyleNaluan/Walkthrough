@@ -94,7 +94,10 @@ function sentFindings(fetch: ReturnType<typeof stubApi>) {
 
 const duePath = '/api/tickets?status=reinspection_scheduled';
 
-/** Re-inspections due: tickets 4 and 5 at store 1, ticket 9 at store 3. */
+/**
+ * Re-inspections due: tickets 4 and 5 at store 1, ticket 9 at store 3. Each
+ * waits on re-inspection 40 plus its ticket ID.
+ */
 const due: TicketSummary[] = [
   {id: 4, description: 'Hand sink blocked by boxes', store: stores[0]},
   {id: 5, description: 'No thermometer in walk-in', store: stores[0]},
@@ -107,6 +110,7 @@ const due: TicketSummary[] = [
   status: 'reinspection_scheduled',
   overdue: false,
   store: {id: store.id, name: store.name},
+  reinspectionId: 40 + id,
 }));
 
 /** The re-inspection results the page sent for ticket 4. */
@@ -492,7 +496,9 @@ describe('re-inspections (story 12)', () => {
     fireEvent.click(within(row).getByRole('button', {name: 'Passed'}));
     expect(await within(row).findByText('Resolved')).toBeInTheDocument();
     expect(within(row).queryByRole('button', {name: 'Passed'})).toBeNull();
-    expect(sentResults(fetch)).toEqual([{inspectionId: 7, outcome: 'passed'}]);
+    expect(sentResults(fetch)).toEqual([
+      {reinspectionId: 44, inspectionId: 7, outcome: 'passed'},
+    ]);
     expect(
       within(screen.getByRole('group', {name: 'T-0005'})).getByRole('button', {
         name: 'Passed',
@@ -519,7 +525,9 @@ describe('re-inspections (story 12)', () => {
     expect(
       await within(row).findByText('Changes requested'),
     ).toBeInTheDocument();
-    expect(sentResults(fetch)).toEqual([{inspectionId: 7, outcome: 'failed'}]);
+    expect(sentResults(fetch)).toEqual([
+      {reinspectionId: 44, inspectionId: 7, outcome: 'failed'},
+    ]);
   });
 
   it('records a new finding on a re-inspection without changing the re-inspected ticket (AC 12.4)', async () => {

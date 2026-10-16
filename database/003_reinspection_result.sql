@@ -6,6 +6,7 @@
 
 create function record_reinspection(
   p_ticket_id bigint,
+  p_reinspection_id bigint,
   p_inspection_id bigint,
   p_outcome reinspection_outcome
 )
@@ -16,7 +17,6 @@ set search_path = public
 as $$
 declare
   v_status ticket_status;
-  v_reinspection_id bigint;
 begin
   if p_outcome = 'pending' then
     raise exception 'Result must be passed or failed' using errcode = 'P0001';
@@ -48,12 +48,13 @@ begin
       using errcode = 'P0001';
   end if;
 
-  -- review_fix added this row when the re-inspection was scheduled.
-  select reinspection_id into v_reinspection_id
+  -- review_fix added this row when the re-inspection was scheduled. A result
+  -- for an earlier round, e.g. from a page left open, is refused.
+  perform 1
     from reinspection
-    where ticket_id = p_ticket_id and outcome = 'pending'
-    order by reinspection_id desc
-    limit 1
+    where reinspection_id = p_reinspection_id
+      and ticket_id = p_ticket_id
+      and outcome = 'pending'
     for update;
   if not found then
     raise exception 'This ticket has no re-inspection scheduled'
@@ -62,7 +63,7 @@ begin
 
   update reinspection
     set outcome = p_outcome, inspection_id = p_inspection_id
-    where reinspection_id = v_reinspection_id;
+    where reinspection_id = p_reinspection_id;
 
   update ticket
     set status = case p_outcome
@@ -78,9 +79,9 @@ $$;
 -- status.
 
 revoke execute on function
-  record_reinspection(bigint, bigint, reinspection_outcome)
+  record_reinspection(bigint, bigint, bigint, reinspection_outcome)
   from public, anon, authenticated;
 
 grant execute on function
-  record_reinspection(bigint, bigint, reinspection_outcome)
+  record_reinspection(bigint, bigint, bigint, reinspection_outcome)
   to service_role;

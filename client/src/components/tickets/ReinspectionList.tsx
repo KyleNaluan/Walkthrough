@@ -36,7 +36,7 @@ function ReinspectionRow({
     try {
       const saved = await apiPost<TicketDetail>(
         `/api/tickets/${ticket.id}/reinspection`,
-        {inspectionId, outcome},
+        {reinspectionId: ticket.reinspectionId, inspectionId, outcome},
       );
       setStatus(saved.status);
     } catch (err) {
