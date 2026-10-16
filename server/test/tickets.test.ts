@@ -860,6 +860,27 @@ describe('POST /api/tickets/:ticketId/reinspection (story 12)', () => {
     expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['inspectionId', true],
+    ['inspectionId', [2]],
+    ['inspectionId', '2'],
+    ['reinspectionId', true],
+  ])(
+    'refuses %s %j, which is not a number, and saves nothing (AC 12.2)',
+    async (field, value) => {
+      const res = await recordResult(6, 'inspector', {
+        reinspectionId: 31,
+        inspectionId: 20,
+        outcome: 'passed',
+        [field]: value,
+      });
+      expect(res.status).toBe(400);
+      expect(res.body.fields).toEqual({[field]: 'Invalid ID'});
+      expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
+      expect(db.get(6)!.status).toBe('reinspection_scheduled');
+    },
+  );
+
   it('sends 404 for an inspection that does not exist', async () => {
     const res = await recordResult(6, 'inspector', {
       reinspectionId: 31,

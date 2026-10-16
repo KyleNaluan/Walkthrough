@@ -18,6 +18,7 @@ import {
   type ValidPhoto,
 } from '../lib/photos.js';
 import {
+  idField,
   idParam,
   isOverdue,
   notInPast,
@@ -223,8 +224,8 @@ const NOT_SCHEDULED = 'This ticket has no re-inspection scheduled';
 const WRONG_STORE = "This inspection is not of the ticket's store";
 
 const reinspectionBody = z.object({
-  reinspectionId: idParam,
-  inspectionId: idParam,
+  reinspectionId: idField,
+  inspectionId: idField,
   outcome: z.enum(['passed', 'failed'], 'Result must be passed or failed'),
 });
 
