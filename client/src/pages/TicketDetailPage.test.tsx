@@ -5,7 +5,12 @@ import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
 import {inspector, owner} from '../test/users';
-import type {FixSubmission, TicketDetail, TicketStatus} from '../types';
+import type {
+  FixSubmission,
+  Reinspection,
+  TicketDetail,
+  TicketStatus,
+} from '../types';
 
 const comment = 'The chicken is still on the top shelf.';
 
@@ -31,6 +36,7 @@ const pendingFix: FixSubmission = {
 function ticket(
   status: TicketStatus,
   fixes: FixSubmission[] = [],
+  reinspections: Reinspection[] = [],
 ): TicketDetail {
   return {
     id: 4,
@@ -43,6 +49,7 @@ function ticket(
     inspectionId: 1,
     store: {id: 1, name: 'Main St Diner'},
     fixes,
+    reinspections,
   };
 }
 
@@ -513,6 +520,110 @@ describe('ticket timeline (story 13)', () => {
       .getAllByRole('group')
       .map((item) => item.getAttribute('aria-label'));
   }
+
+  const scheduledFix: FixSubmission = {
+    ...reviewedFix,
+    review: {...reviewedFix.review!, decision: 'reinspection_scheduled'},
+  };
+
+  const approvedFix: FixSubmission = {
+    ...pendingFix,
+    submittedAt: '2026-10-06T15:00:00Z',
+    review: {
+      decision: 'approved',
+      comment: null,
+      reviewedAt: '2026-10-07T15:00:00Z',
+      reviewerName: 'Jordan Reyes',
+    },
+  };
+
+  const failed: Reinspection = {
+    id: 1,
+    scheduledFor: '2026-10-05',
+    outcome: 'failed',
+    createdAt: '2026-10-02T15:00:00Z',
+    visit: {
+      inspectionId: 31,
+      startedAt: '2026-10-05T14:00:00Z',
+      inspectorName: 'Ina Spector',
+    },
+  };
+
+  it('shows the finding, each fix, each review and the re-inspection with their dates, oldest first (AC 13.1)', async () => {
+    openTicket(
+      inspector,
+      ticket('resolved', [scheduledFix, approvedFix], [failed]),
+    );
+    await screen.findByRole('heading', {name: 'Timeline'});
+    expect(timeline()).toEqual([
+      'Finding',
+      'Fix 1',
+      'Re-inspection 1',
+      'Fix 2',
+    ]);
+    expect(screen.getByRole('group', {name: 'Finding'})).toHaveTextContent(
+      'Sep 30, 2026',
+    );
+    const first = screen.getByRole('group', {name: 'Fix 1'});
+    expect(first).toHaveTextContent('Oct 1, 2026');
+    expect(
+      within(first).getByText('Re-inspection scheduled'),
+    ).toBeInTheDocument();
+    expect(first).toHaveTextContent('by Jordan Reyes · Oct 2, 2026');
+    const reinspection = screen.getByRole('group', {name: 'Re-inspection 1'});
+    expect(reinspection).toHaveTextContent('Re-inspection failed');
+    expect(reinspection).toHaveTextContent('Oct 5, 2026');
+    expect(reinspection).toHaveTextContent('INS-0031 by Ina Spector');
+    const second = screen.getByRole('group', {name: 'Fix 2'});
+    expect(second).toHaveTextContent('Oct 6, 2026');
+    expect(within(second).getByText('Approved')).toBeInTheDocument();
+    expect(second).toHaveTextContent('by Jordan Reyes · Oct 7, 2026');
+  });
+
+  it('shows a re-inspection that is still due with its date (AC 13.1)', async () => {
+    openTicket(
+      owner,
+      ticket(
+        'reinspection_scheduled',
+        [scheduledFix],
+        [
+          {
+            id: 1,
+            scheduledFor: '2026-10-20',
+            outcome: 'pending',
+            createdAt: '2026-10-02T15:00:00Z',
+            visit: null,
+          },
+        ],
+      ),
+    );
+    await screen.findByRole('heading', {name: 'Timeline'});
+    expect(timeline()).toEqual(['Finding', 'Fix 1', 'Re-inspection 1']);
+    const reinspection = screen.getByRole('group', {name: 'Re-inspection 1'});
+    expect(reinspection).toHaveTextContent('Re-inspection due');
+    expect(reinspection).toHaveTextContent('Due Oct 20, 2026');
+  });
+
+  it('keeps a re-inspection after the review that scheduled it', async () => {
+    openTicket(
+      inspector,
+      ticket(
+        'changes_requested',
+        [scheduledFix],
+        [
+          {
+            ...failed,
+            visit: {...failed.visit!, startedAt: '2026-09-30T16:00:00Z'},
+          },
+        ],
+      ),
+    );
+    await screen.findByRole('heading', {name: 'Timeline'});
+    expect(timeline()).toEqual(['Finding', 'Fix 1', 'Re-inspection 1']);
+    expect(
+      screen.getByRole('group', {name: 'Re-inspection 1'}),
+    ).toHaveTextContent('Sep 30, 2026');
+  });
 
   it('shows the owner their ticket with only the finding when there is no fix (AC 13.2, 13.4)', async () => {
     openTicket(owner, ticket('open'));

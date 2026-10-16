@@ -1,10 +1,13 @@
 import {Badge, Box, Flex, Group, Stack, Text, Timeline} from '@mantine/core';
 import type {ReactNode} from 'react';
 import {apiGet} from '../../api';
-import {formatDateTime} from '../../lib/format';
+import {formatDate, formatDateTime} from '../../lib/format';
+import {recordNumber} from '../../status';
 import type {
   FixReview,
   FixSubmission,
+  Reinspection,
+  ReinspectionOutcome,
   ReviewDecision,
   TicketDetail,
 } from '../../types';
@@ -14,6 +17,12 @@ const DECISION: Record<ReviewDecision, {label: string; color: string}> = {
   approved: {label: 'Approved', color: 'green'},
   changes_requested: {label: 'Changes requested', color: 'red'},
   reinspection_scheduled: {label: 'Re-inspection scheduled', color: 'grape'},
+};
+
+const OUTCOME: Record<ReinspectionOutcome, {label: string; color: string}> = {
+  pending: {label: 'Re-inspection due', color: 'grape'},
+  passed: {label: 'Re-inspection passed', color: 'green'},
+  failed: {label: 'Re-inspection failed', color: 'red'},
 };
 
 function Review({review}: {review: FixReview}) {
@@ -74,32 +83,65 @@ function Fix({
 
 interface Entry {
   key: string;
+  /** When it happened, for the order. */
+  at: number;
   label: string;
   title: string;
   date: string;
+  color?: string;
   body?: ReactNode;
 }
 
+function reinspectionEntry(reinspection: Reinspection, number: number): Entry {
+  const {visit} = reinspection;
+  const {label, color} = OUTCOME[reinspection.outcome];
+  return {
+    key: `reinspection-${reinspection.id}`,
+    // Never before the review that scheduled it.
+    at: Math.max(
+      Date.parse(reinspection.createdAt),
+      visit ? Date.parse(visit.startedAt) : 0,
+    ),
+    label: `Re-inspection ${number}`,
+    title: label,
+    date: visit
+      ? formatDateTime(visit.startedAt)
+      : `Due ${formatDate(reinspection.scheduledFor)}`,
+    color,
+    body: visit && (
+      <Text fz="sm">
+        {recordNumber('INS', visit.inspectionId)} by {visit.inspectorName}
+      </Text>
+    ),
+  };
+}
+
 /**
- * The finding, then each fix round with its review. A review always comes
- * before the next fix, so it stays with its fix.
+ * The finding, each fix round with its review, and each re-inspection,
+ * oldest first (AC 13.1). A review always comes before the next fix or
+ * re-inspection result, so it stays with its fix.
  */
 function entries(ticket: TicketDetail): Entry[] {
   return [
     {
       key: 'finding',
+      at: Date.parse(ticket.recordedAt),
       label: 'Finding',
       title: 'Finding recorded',
       date: formatDateTime(ticket.recordedAt),
     },
     ...ticket.fixes.map((fix, index) => ({
       key: `fix-${fix.id}`,
+      at: Date.parse(fix.submittedAt),
       label: `Fix ${index + 1}`,
       title: `Fix ${index + 1} submitted`,
       date: formatDateTime(fix.submittedAt),
       body: <Fix ticketId={ticket.id} fix={fix} number={index + 1} />,
     })),
-  ];
+    ...ticket.reinspections.map((reinspection, index) =>
+      reinspectionEntry(reinspection, index + 1),
+    ),
+  ].sort((a, b) => a.at - b.at);
 }
 
 /** A ticket's history, oldest first (story 13). */
@@ -112,6 +154,16 @@ export function TicketTimeline({ticket}: {ticket: TicketDetail}) {
           key={item.key}
           role="group"
           aria-label={item.label}
+          // Colour only the bullet, so the line stays one colour.
+          styles={
+            item.color
+              ? {
+                  itemBullet: {
+                    borderColor: `var(--mantine-color-${item.color}-filled)`,
+                  },
+                }
+              : undefined
+          }
           title={
             <Flex
               direction={{base: 'column', xs: 'row'}}

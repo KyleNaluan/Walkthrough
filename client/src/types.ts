@@ -83,7 +83,25 @@ export interface FixSubmission {
   review: FixReview | null;
 }
 
-/** A ticket with its store and every fix round, oldest first. */
+export type ReinspectionOutcome = 'pending' | 'passed' | 'failed';
+
+/** A re-inspection; `visit` stays null until its result is recorded. */
+export interface Reinspection {
+  id: number;
+  scheduledFor: string;
+  outcome: ReinspectionOutcome;
+  createdAt: string;
+  visit: {
+    inspectionId: number;
+    startedAt: string;
+    inspectorName: string;
+  } | null;
+}
+
+/**
+ * A ticket with its store, every fix round and every re-inspection, oldest
+ * first.
+ */
 export interface TicketDetail {
   id: number;
   description: string;
@@ -95,4 +113,5 @@ export interface TicketDetail {
   inspectionId: number;
   store: {id: number; name: string};
   fixes: FixSubmission[];
+  reinspections: Reinspection[];
 }
