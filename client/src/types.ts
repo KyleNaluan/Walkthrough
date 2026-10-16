@@ -50,6 +50,14 @@ export interface InspectionDetail extends Inspection {
   tickets: Ticket[];
 }
 
+/** A row of a store's inspection history (story 14). */
+export interface InspectionSummary {
+  id: number;
+  startedAt: string;
+  inspector: {firstName: string; lastName: string};
+  findingCount: number;
+}
+
 /** A row of the ticket list (story 8). */
 export interface TicketSummary {
   id: number;

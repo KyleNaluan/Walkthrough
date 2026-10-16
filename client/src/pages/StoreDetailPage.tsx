@@ -4,6 +4,7 @@ import {useEffect, useRef, useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router';
 import {ApiError, apiPost} from '../api';
 import {useAuth} from '../auth/useAuth';
+import {InspectionHistory} from '../components/InspectionHistory';
 import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
 import {PageHeader} from '../components/ui/PageHeader';
@@ -15,7 +16,7 @@ import type {Inspection, Store} from '../types';
 /**
  * One store. The server checks access: inspectors open any store (story 2),
  * owners only their own (story 3). Inspectors can start an inspection here
- * (story 5).
+ * (story 5), and both see its past inspections (story 14).
  */
 export function StoreDetailPage() {
   const {storeId} = useParams();
@@ -99,6 +100,7 @@ export function StoreDetailPage() {
             <Field label="Name" value={store.data.name} />
             <Field label="Address" value={store.data.address} />
           </Section>
+          <InspectionHistory storeId={store.data.id} />
         </>
       )}
     </>
