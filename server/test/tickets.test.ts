@@ -44,8 +44,29 @@ interface FakeReinspection {
   id: number;
   scheduledFor: string;
   outcome: 'pending' | 'passed' | 'failed';
+  createdAt: string;
   inspectionId: number | null;
 }
+
+/** Inspections in the fake database: 20 is at store 1, 21 at store 3. */
+const inspections = new Map([
+  [
+    20,
+    {
+      storeId: 1,
+      startedAt: '2026-10-05T14:00:00Z',
+      inspectorId: users.inspector.id,
+    },
+  ],
+  [
+    21,
+    {
+      storeId: 3,
+      startedAt: '2026-10-06T14:00:00Z',
+      inspectorId: users.inspector.id,
+    },
+  ],
+]);
 
 interface FakeTicket {
   id: number;
@@ -84,7 +105,13 @@ function reinspection(
   outcome: FakeReinspection['outcome'] = 'pending',
   inspectionId: number | null = null,
 ): FakeReinspection {
-  return {id, scheduledFor: '2999-01-01', outcome, inspectionId};
+  return {
+    id,
+    scheduledFor: '2999-01-01',
+    outcome,
+    createdAt: '2026-10-02T15:00:00Z',
+    inspectionId,
+  };
 }
 
 const changesRequested = {
@@ -96,8 +123,10 @@ const changesRequested = {
 
 /** The fake database as getTicket returns it. */
 function toRecord(t: FakeTicket): TicketRecord {
-  const reviewer = (id: string) =>
-    Object.values(users).find((user) => user.id === id)!;
+  const name = (id: string) => {
+    const user = Object.values(users).find((u) => u.id === id)!;
+    return `${user.firstName} ${user.lastName}`;
+  };
   return {
     id: t.id,
     description: `Finding ${t.id}`,
@@ -115,8 +144,19 @@ function toRecord(t: FakeTicket): TicketRecord {
         decision: f.review.decision,
         comment: f.review.comment,
         reviewedAt: f.review.reviewedAt,
-        reviewerName: `${reviewer(f.review.reviewerId).firstName} ${reviewer(f.review.reviewerId).lastName}`,
+        reviewerName: name(f.review.reviewerId),
       },
+    })),
+    reinspections: t.reinspections.map(({inspectionId, ...r}) => ({
+      ...r,
+      visit:
+        inspectionId === null
+          ? null
+          : {
+              inspectionId,
+              startedAt: inspections.get(inspectionId)!.startedAt,
+              inspectorName: name(inspections.get(inspectionId)!.inspectorId),
+            },
     })),
   };
 }
@@ -216,18 +256,14 @@ beforeEach(() => {
         id: 50,
         scheduledFor,
         outcome: 'pending',
+        createdAt: '2026-10-14T16:00:00Z',
         inspectionId: null,
       });
     },
   );
 
-  // Inspection 20 is at store 1, inspection 21 at store 3.
   vi.mocked(storesDb.storeIdForInspection).mockImplementation(
-    async (id) =>
-      new Map([
-        [20, 1],
-        [21, 3],
-      ]).get(id) ?? null,
+    async (id) => inspections.get(id)?.storeId ?? null,
   );
   // The same checks as record_reinspection in 003_reinspection_result.sql.
   vi.mocked(ticketsDb.recordReinspection).mockImplementation(
@@ -274,7 +310,7 @@ function review(
 }
 
 describe('GET /api/tickets/:ticketId', () => {
-  it('shows an owner their ticket with every fix round and review', async () => {
+  it('shows an owner their ticket with every fix round and review (AC 13.2)', async () => {
     const res = await request(app).get('/api/tickets/2').set(asUser('ownerA'));
     expect(res.status).toBe(200);
     expect(res.body).toMatchObject({
@@ -296,6 +332,82 @@ describe('GET /api/tickets/:ticketId', () => {
     expect(JSON.stringify(res.body)).not.toContain('.png');
   });
 
+  it("shows an inspector the ticket's fixes, reviews and re-inspections with their dates (AC 13.1)", async () => {
+    const scheduled = (reviewedAt: string) => ({
+      decision: 'reinspection_scheduled' as const,
+      comment: null,
+      reviewedAt,
+      reviewerId: users.inspector.id,
+    });
+    db.set(
+      8,
+      ticket(
+        8,
+        1,
+        'reinspection_scheduled',
+        [
+          fix(14, scheduled('2026-10-02T15:00:00Z')),
+          {
+            ...fix(15, scheduled('2026-10-07T15:00:00Z')),
+            submittedAt: '2026-10-06T15:00:00Z',
+          },
+        ],
+        [
+          {...reinspection(1, 'failed', 20), scheduledFor: '2026-10-05'},
+          {...reinspection(2), createdAt: '2026-10-07T15:00:00Z'},
+        ],
+      ),
+    );
+
+    const res = await request(app)
+      .get('/api/tickets/8')
+      .set(asUser('inspector'));
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      recordedAt: '2026-09-30T15:00:00Z',
+      fixes: [
+        {
+          id: 14,
+          submittedAt: '2026-10-01T15:00:00Z',
+          review: {
+            decision: 'reinspection_scheduled',
+            reviewedAt: '2026-10-02T15:00:00Z',
+            reviewerName: 'Ina Spector',
+          },
+        },
+        {
+          id: 15,
+          submittedAt: '2026-10-06T15:00:00Z',
+          review: {
+            decision: 'reinspection_scheduled',
+            reviewedAt: '2026-10-07T15:00:00Z',
+            reviewerName: 'Ina Spector',
+          },
+        },
+      ],
+    });
+    expect(res.body.reinspections).toEqual([
+      {
+        id: 1,
+        scheduledFor: '2026-10-05',
+        outcome: 'failed',
+        createdAt: '2026-10-02T15:00:00Z',
+        visit: {
+          inspectionId: 20,
+          startedAt: '2026-10-05T14:00:00Z',
+          inspectorName: 'Ina Spector',
+        },
+      },
+      {
+        id: 2,
+        scheduledFor: '2999-01-01',
+        outcome: 'pending',
+        createdAt: '2026-10-07T15:00:00Z',
+        visit: null,
+      },
+    ]);
+  });
+
   it('shows any ticket to an inspector', async () => {
     const res = await request(app)
       .get('/api/tickets/3')
@@ -303,13 +415,13 @@ describe('GET /api/tickets/:ticketId', () => {
     expect(res.status).toBe(200);
   });
 
-  it("refuses another owner's ticket", async () => {
+  it("refuses another owner's ticket (AC 13.3)", async () => {
     const res = await request(app).get('/api/tickets/3').set(asUser('ownerA'));
     expect(res.status).toBe(403);
     expect(res.body).toEqual({error: 'Access denied'});
   });
 
-  it('sends 404 for a ticket that does not exist', async () => {
+  it('sends 404 for a ticket that does not exist (AC 13.5)', async () => {
     const res = await request(app)
       .get('/api/tickets/99')
       .set(asUser('inspector'));
@@ -668,6 +780,7 @@ describe('POST /api/tickets/:ticketId/review: schedule a re-inspection (story 12
         id: 50,
         scheduledFor: '2999-01-01',
         outcome: 'pending',
+        createdAt: '2026-10-14T16:00:00Z',
         inspectionId: null,
       },
     ]);

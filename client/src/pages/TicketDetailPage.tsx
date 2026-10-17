@@ -10,9 +10,9 @@ import {Link, useParams} from 'react-router';
 import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {Photo} from '../components/Photo';
-import {FixHistory} from '../components/tickets/FixHistory';
 import {ReviewForm} from '../components/tickets/ReviewForm';
 import {SubmitFixForm} from '../components/tickets/SubmitFixForm';
+import {TicketTimeline} from '../components/tickets/TicketTimeline';
 import {
   OverdueBadge,
   SeverityBadge,
@@ -127,11 +127,9 @@ function Ticket({
         </Box>
       </Section>
 
-      {ticket.fixes.length > 0 && (
-        <Section title="Fix history">
-          <FixHistory ticketId={ticket.id} fixes={ticket.fixes} />
-        </Section>
-      )}
+      <Section title="Timeline">
+        <TicketTimeline ticket={ticket} />
+      </Section>
 
       {canSubmitFix && (
         <Section
@@ -165,8 +163,8 @@ function Ticket({
 }
 
 /**
- * One ticket: the finding, every fix round and its review, and the next
- * step for whoever is looking. Owners submit fixes (story 9); inspectors
+ * One ticket: the finding, a timeline of its history (story 13), and the
+ * next step for whoever is looking. Owners submit fixes (story 9); inspectors
  * approve (story 10) or request changes (story 11). The server checks
  * access and status for each step.
  */
