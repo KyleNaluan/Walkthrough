@@ -84,6 +84,10 @@ interface TicketListRow {
   deadline: string;
   status: TicketStatus;
   inspection: {store: {store_id: number; name: string}};
+  reinspection: {
+    reinspection_id: number;
+    outcome: 'pending' | 'passed' | 'failed';
+  }[];
 }
 
 /**
@@ -102,7 +106,8 @@ export async function listTickets({
     .from('ticket')
     .select(
       `ticket_id, description, severity, deadline, status,
-       inspection!inner(store_id, store!inner(store_id, name))`,
+       inspection!inner(store_id, store!inner(store_id, name)),
+       reinspection(reinspection_id, outcome)`,
     );
   if (storeIds) query = query.in('inspection.store_id', storeIds);
   if (status) query = query.eq('status', status);
@@ -121,6 +126,9 @@ export async function listTickets({
       id: row.inspection.store.store_id,
       name: row.inspection.store.name,
     },
+    reinspectionId:
+      row.reinspection.find((r) => r.outcome === 'pending')?.reinspection_id ??
+      null,
   }));
 }
 
@@ -270,6 +278,49 @@ export async function reviewFix(
     p_reviewer_id: reviewerId,
     p_decision: decision,
     p_comment: comment,
+  });
+  if (error) throw error;
+}
+
+// Story 12: re-inspections ----------------------------------------------------
+
+/**
+ * Saves a review of a fix that schedules a re-inspection, and moves the
+ * ticket on in one step (review_fix in 002_status_functions.sql). A refusal
+ * is a P0001 error.
+ */
+export async function scheduleReinspection(
+  fixId: number,
+  reviewerId: string,
+  comment: string | null,
+  scheduledFor: string,
+): Promise<void> {
+  const {error} = await getSupabaseAdmin().rpc('review_fix', {
+    p_fix_id: fixId,
+    p_reviewer_id: reviewerId,
+    p_decision: 'reinspection_scheduled',
+    p_comment: comment,
+    p_scheduled_for: scheduledFor,
+  });
+  if (error) throw error;
+}
+
+/**
+ * Records a re-inspection as passed or failed and moves the ticket on in one
+ * step (record_reinspection in 003_reinspection_result.sql). A refusal is a
+ * P0001 error.
+ */
+export async function recordReinspection(
+  ticketId: number,
+  reinspectionId: number,
+  inspectionId: number,
+  outcome: 'passed' | 'failed',
+): Promise<void> {
+  const {error} = await getSupabaseAdmin().rpc('record_reinspection', {
+    p_ticket_id: ticketId,
+    p_reinspection_id: reinspectionId,
+    p_inspection_id: inspectionId,
+    p_outcome: outcome,
   });
   if (error) throw error;
 }

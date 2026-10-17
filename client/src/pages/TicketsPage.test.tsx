@@ -18,6 +18,7 @@ function summary(
     status: 'open',
     overdue: false,
     store: {id: 1, name: 'Main St Diner'},
+    reinspectionId: null,
     ...overrides,
   };
 }

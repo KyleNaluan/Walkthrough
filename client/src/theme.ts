@@ -41,6 +41,8 @@ export const theme = createTheme({
     Textarea: {defaultProps: {size: 'md'}},
     Select: {defaultProps: {size: 'md'}},
     FileInput: {defaultProps: {size: 'md'}},
+    DateInput: {defaultProps: {size: 'md'}},
+    RadioGroup: {defaultProps: {size: 'md'}},
     // Cards stay white on the grey page.
     Paper: {defaultProps: {withBorder: true, bg: 'white'}},
     Card: {defaultProps: {withBorder: true, bg: 'white'}},

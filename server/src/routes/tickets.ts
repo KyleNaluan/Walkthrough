@@ -3,6 +3,7 @@ import {z} from 'zod';
 import * as tickets from '../db/tickets.js';
 import type {AppUser, TicketDetail, TicketStatus} from '../db/types.js';
 import {
+  assertInspectionAccess,
   assertStoreAccess,
   assertTicketAccess,
   storeIdsVisibleTo,
@@ -16,10 +17,18 @@ import {
   validatePhoto,
   type ValidPhoto,
 } from '../lib/photos.js';
-import {idParam, isOverdue, parseBody, parseParams} from '../lib/validate.js';
+import {
+  idField,
+  idParam,
+  isOverdue,
+  notInPast,
+  parseBody,
+  parseParams,
+} from '../lib/validate.js';
 import {requireRole, requireUser} from '../middleware/auth.js';
 
-// Stories 8-11 (ticket list, submit a fix, approve, request changes).
+// Stories 8-12 (ticket list, submit a fix, approve, request changes,
+// re-inspection).
 export const ticketsRouter = Router();
 
 // Story 8: the ticket list ----------------------------------------------------
@@ -159,38 +168,91 @@ ticketsRouter.post(
   },
 );
 
-// Stories 10 and 11: approve or request changes ------------------------------
+// Stories 10-12: approve, request changes or schedule a re-inspection ---------
 
 const NOTHING_TO_REVIEW = 'This ticket has no fix waiting for review';
 const COMMENT_REQUIRED = 'A comment is required to request changes';
+const DATE_REQUIRED = 'A re-inspection date is required';
 
 const reviewBody = z.object({
   decision: z.enum(
-    ['approved', 'changes_requested'],
-    'Decision must be approved or changes_requested',
+    ['approved', 'changes_requested', 'reinspection_scheduled'],
+    'Decision must be approved, changes_requested or reinspection_scheduled',
   ),
   comment: z.string('Comment must be text').trim().optional(),
+  scheduledFor: notInPast('Re-inspection date').optional(),
 });
 
 ticketsRouter.post(
   '/tickets/:ticketId/review',
   requireUser,
-  requireRole('inspector'), // AC 10.3
+  requireRole('inspector'), // AC 10.3, 12.6
   async (req, res) => {
     const {ticketId} = parseParams(ticketParams, req);
-    const {decision, comment} = parseBody(reviewBody, req);
+    const {decision, comment, scheduledFor} = parseBody(reviewBody, req);
     if (decision === 'changes_requested' && !comment) {
       throw new HttpError(400, COMMENT_REQUIRED, {comment: COMMENT_REQUIRED}); // AC 11.2
+    }
+    if (decision === 'reinspection_scheduled' && !scheduledFor) {
+      throw new HttpError(400, DATE_REQUIRED, {scheduledFor: DATE_REQUIRED}); // AC 12.1
     }
 
     const ticket = await loadTicket(req.user!, ticketId);
     const fixId = await tickets.latestFixId(ticketId);
     if (ticket.status !== 'pending_review' || fixId == null) {
-      throw new HttpError(409, NOTHING_TO_REVIEW); // AC 10.2
+      throw new HttpError(409, NOTHING_TO_REVIEW); // AC 10.2, 12.5
     }
     // review_fix records the reviewer and time, and checks the status again
-    // (AC 10.1, 11.1).
-    await tickets.reviewFix(fixId, req.user!.id, decision, comment || null);
+    // (AC 10.1, 11.1, 12.1).
+    if (decision === 'reinspection_scheduled') {
+      await tickets.scheduleReinspection(
+        fixId,
+        req.user!.id,
+        comment || null,
+        scheduledFor!,
+      );
+    } else {
+      await tickets.reviewFix(fixId, req.user!.id, decision, comment || null);
+    }
+    res.json(await reloadTicket(ticketId));
+  },
+);
+
+// Story 12: record a re-inspection --------------------------------------------
+
+const NOT_SCHEDULED = 'This ticket has no re-inspection scheduled';
+const WRONG_STORE = "This inspection is not of the ticket's store";
+
+const reinspectionBody = z.object({
+  reinspectionId: idField,
+  inspectionId: idField,
+  outcome: z.enum(['passed', 'failed'], 'Result must be passed or failed'),
+});
+
+ticketsRouter.post(
+  '/tickets/:ticketId/reinspection',
+  requireUser,
+  requireRole('inspector'), // AC 12.6
+  async (req, res) => {
+    const {ticketId} = parseParams(ticketParams, req);
+    const {reinspectionId, inspectionId, outcome} = parseBody(
+      reinspectionBody,
+      req,
+    );
+    const ticket = await loadTicket(req.user!, ticketId);
+    const store = await assertInspectionAccess(req.user!, inspectionId);
+    if (store.id !== ticket.store.id) throw new HttpError(409, WRONG_STORE);
+    if (ticket.status !== 'reinspection_scheduled') {
+      throw new HttpError(409, NOT_SCHEDULED);
+    }
+    // record_reinspection links the visit, checks the status again and
+    // refuses a re-inspection that is not the one waiting (AC 12.2, 12.3).
+    await tickets.recordReinspection(
+      ticketId,
+      reinspectionId,
+      inspectionId,
+      outcome,
+    );
     res.json(await reloadTicket(ticketId));
   },
 );
