@@ -67,6 +67,14 @@ export interface Inspection {
   inspectorId: string;
 }
 
+/** A row of a store's inspection history (story 14). */
+export interface InspectionSummary {
+  id: number;
+  startedAt: string;
+  inspector: {firstName: string; lastName: string};
+  findingCount: number;
+}
+
 export interface Ticket {
   id: number;
   description: string;
