@@ -1,6 +1,8 @@
 import {getSupabaseAdmin} from '../lib/supabase.js';
 import type {
   FixSubmission,
+  Reinspection,
+  ReinspectionOutcome,
   ReviewDecision,
   Severity,
   Ticket,
@@ -147,6 +149,18 @@ interface FixRow {
   reviewer: {first_name: string; last_name: string} | null;
 }
 
+interface ReinspectionRow {
+  reinspection_id: number;
+  scheduled_for: string;
+  outcome: ReinspectionOutcome;
+  created_at: string;
+  visit: {
+    inspection_id: number;
+    started_at: string;
+    inspector: {first_name: string; last_name: string};
+  } | null;
+}
+
 interface TicketDetailRow {
   ticket_id: number;
   description: string;
@@ -157,6 +171,7 @@ interface TicketDetailRow {
   inspection_id: number;
   inspection: {store: {store_id: number; name: string}};
   fix_submission: FixRow[];
+  reinspection: ReinspectionRow[];
 }
 
 const ticketDetailColumns = `
@@ -167,6 +182,13 @@ const ticketDetailColumns = `
     fix_submission_id, description, submitted_at,
     review_decision, review_comment, reviewed_at,
     reviewer:app_user(first_name, last_name)
+  ),
+  reinspection(
+    reinspection_id, scheduled_for, outcome, created_at,
+    visit:inspection(
+      inspection_id, started_at,
+      inspector:app_user(first_name, last_name)
+    )
   )`;
 
 function toFix(row: FixRow): FixSubmission {
@@ -188,7 +210,24 @@ function toFix(row: FixRow): FixSubmission {
   };
 }
 
-/** One ticket with its store and fix rounds (oldest first), or null. */
+function toReinspection(row: ReinspectionRow): Reinspection {
+  return {
+    id: row.reinspection_id,
+    scheduledFor: row.scheduled_for,
+    outcome: row.outcome,
+    createdAt: row.created_at,
+    visit: row.visit && {
+      inspectionId: row.visit.inspection_id,
+      startedAt: row.visit.started_at,
+      inspectorName: `${row.visit.inspector.first_name} ${row.visit.inspector.last_name}`,
+    },
+  };
+}
+
+/**
+ * One ticket with its store, fix rounds and re-inspections (oldest first), or
+ * null.
+ */
 export async function getTicket(id: number): Promise<TicketRecord | null> {
   const {data, error} = await getSupabaseAdmin()
     .from('ticket')
@@ -212,6 +251,9 @@ export async function getTicket(id: number): Promise<TicketRecord | null> {
     fixes: [...data.fix_submission]
       .sort((a, b) => a.fix_submission_id - b.fix_submission_id)
       .map(toFix),
+    reinspections: [...data.reinspection]
+      .sort((a, b) => a.reinspection_id - b.reinspection_id)
+      .map(toReinspection),
   };
 }
 
