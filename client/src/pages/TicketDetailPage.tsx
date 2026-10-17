@@ -10,9 +10,9 @@ import {Link, useParams} from 'react-router';
 import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {Photo} from '../components/Photo';
-import {FixHistory} from '../components/tickets/FixHistory';
 import {ReviewForm} from '../components/tickets/ReviewForm';
 import {SubmitFixForm} from '../components/tickets/SubmitFixForm';
+import {TicketTimeline} from '../components/tickets/TicketTimeline';
 import {
   OverdueBadge,
   SeverityBadge,
@@ -54,6 +54,10 @@ const OWNER_NOTE: Partial<Record<TicketDetail['status'], string>> = {
   resolved: 'This ticket is resolved. No further fix is needed.',
 };
 
+/** Where an inspector records a scheduled re-inspection (story 12). */
+const INSPECTOR_NOTE =
+  'Start an inspection of this store to record the re-inspection result.';
+
 function Ticket({
   ticket,
   onChange,
@@ -69,6 +73,11 @@ function Ticket({
   const canReview =
     user?.role === 'inspector' && ticket.status === 'pending_review';
   const latestReview = ticket.fixes.at(-1)?.review;
+  const note = isOwner
+    ? OWNER_NOTE[ticket.status]
+    : ticket.status === 'reinspection_scheduled'
+      ? INSPECTOR_NOTE
+      : undefined;
 
   return (
     <>
@@ -83,17 +92,19 @@ function Ticket({
       </Group>
 
       {/* AC 11.3: the owner sees what still needs to be done. */}
-      {ticket.status === 'changes_requested' && latestReview?.comment && (
-        <Alert
-          color="red"
-          variant="light"
-          mb="md"
-          icon={<IconArrowBackUp size={18} />}
-          title={`Changes requested by ${latestReview.reviewerName}`}
-        >
-          {latestReview.comment}
-        </Alert>
-      )}
+      {ticket.status === 'changes_requested' &&
+        latestReview?.decision === 'changes_requested' &&
+        latestReview.comment && (
+          <Alert
+            color="red"
+            variant="light"
+            mb="md"
+            icon={<IconArrowBackUp size={18} />}
+            title={`Changes requested by ${latestReview.reviewerName}`}
+          >
+            {latestReview.comment}
+          </Alert>
+        )}
 
       <Section title="Finding">
         <SimpleGrid cols={{base: 1, xs: 2}} spacing="sm">
@@ -116,11 +127,9 @@ function Ticket({
         </Box>
       </Section>
 
-      {ticket.fixes.length > 0 && (
-        <Section title="Fix history">
-          <FixHistory ticketId={ticket.id} fixes={ticket.fixes} />
-        </Section>
-      )}
+      <Section title="Timeline">
+        <TicketTimeline ticket={ticket} />
+      </Section>
 
       {canSubmitFix && (
         <Section
@@ -133,14 +142,14 @@ function Ticket({
           <SubmitFixForm ticketId={ticket.id} onSubmitted={onChange} />
         </Section>
       )}
-      {isOwner && OWNER_NOTE[ticket.status] && (
+      {note && (
         <Group gap={8} c="dimmed" mb="md">
           {ticket.status === 'resolved' ? (
             <IconCircleCheck size={18} />
           ) : (
             <IconHourglass size={18} />
           )}
-          <Text fz="sm">{OWNER_NOTE[ticket.status]}</Text>
+          <Text fz="sm">{note}</Text>
         </Group>
       )}
 
@@ -154,8 +163,8 @@ function Ticket({
 }
 
 /**
- * One ticket: the finding, every fix round and its review, and the next
- * step for whoever is looking. Owners submit fixes (story 9); inspectors
+ * One ticket: the finding, a timeline of its history (story 13), and the
+ * next step for whoever is looking. Owners submit fixes (story 9); inspectors
  * approve (story 10) or request changes (story 11). The server checks
  * access and status for each step.
  */

@@ -27,6 +27,12 @@ export const idParam = z.coerce
   .int('Invalid ID')
   .positive('Invalid ID');
 
+/** A positive whole-number ID sent as a JSON number in a request body. */
+export const idField = z
+  .number('Invalid ID')
+  .int('Invalid ID')
+  .positive('Invalid ID');
+
 /** A required text field that may not be empty or only spaces. Trimmed. */
 export function nonBlank(field: string) {
   const message = `${field} is required`;

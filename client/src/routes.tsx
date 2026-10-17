@@ -8,13 +8,18 @@ import {LoginPage} from './pages/LoginPage';
 import {NotFoundPage} from './pages/NotFoundPage';
 import {StoreDetailPage} from './pages/StoreDetailPage';
 import {StoresPage} from './pages/StoresPage';
-import {TicketDetailPage} from './pages/TicketDetailPage';
 import {TicketsPage} from './pages/TicketsPage';
 
-// The finding form's date picker is large, so this page loads on first visit.
+// The date pickers are large, so these pages load on first visit.
 const InspectionPage = lazy(() =>
   import('./pages/InspectionPage').then((page) => ({
     default: page.InspectionPage,
+  })),
+);
+
+const TicketDetailPage = lazy(() =>
+  import('./pages/TicketDetailPage').then((page) => ({
+    default: page.TicketDetailPage,
   })),
 );
 
@@ -42,7 +47,14 @@ export function AppRoutes() {
             }
           />
           <Route path="/tickets" element={<TicketsPage />} />
-          <Route path="/tickets/:ticketId" element={<TicketDetailPage />} />
+          <Route
+            path="/tickets/:ticketId"
+            element={
+              <Suspense fallback={<Loading />}>
+                <TicketDetailPage />
+              </Suspense>
+            }
+          />
         </Route>
       </Route>
       <Route path="*" element={<NotFoundPage />} />

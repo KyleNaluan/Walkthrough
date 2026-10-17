@@ -439,6 +439,17 @@ describe('POST /api/inspections/:inspectionId/tickets', () => {
     expect(res.status).toBe(409);
     expect(photos.deletePhoto).toHaveBeenCalledWith('tickets/abc.png');
   });
+
+  // A re-inspection visit is an ordinary inspection of the store.
+  it('opens a new ticket for a finding on a re-inspection visit and changes no other ticket (AC 12.4)', async () => {
+    const res = await postFinding();
+    expect(res.status).toBe(201);
+    expect(ticketsDb.createTicket).toHaveBeenCalledTimes(1);
+    expect(ticketsDb.submitFix).not.toHaveBeenCalled();
+    expect(ticketsDb.reviewFix).not.toHaveBeenCalled();
+    expect(ticketsDb.scheduleReinspection).not.toHaveBeenCalled();
+    expect(ticketsDb.recordReinspection).not.toHaveBeenCalled();
+  });
 });
 
 describe('GET /api/tickets/:ticketId/photo', () => {

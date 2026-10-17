@@ -6,6 +6,7 @@ import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {FindingForm} from '../components/FindingForm';
 import {Photo} from '../components/Photo';
+import {ReinspectionList} from '../components/tickets/ReinspectionList';
 import {SeverityBadge, StatusBadge} from '../components/ui/Badges';
 import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
@@ -74,8 +75,9 @@ function FindingRow({ticket}: {ticket: Ticket}) {
 }
 
 /**
- * One inspection: its store, inspector and start time (story 5), and its
- * findings (story 6) with their photos (story 7).
+ * One inspection: its store, inspector and start time (story 5), its
+ * findings (story 6) with their photos (story 7), and for inspectors the
+ * store's re-inspections due (story 12).
  */
 export function InspectionPage() {
   const {inspectionId} = useParams();
@@ -132,6 +134,12 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
               value={startedFormat.format(new Date(inspection.data.startedAt))}
             />
           </Section>
+          {user?.role === 'inspector' && (
+            <ReinspectionList
+              storeId={inspection.data.storeId}
+              inspectionId={inspection.data.id}
+            />
+          )}
           <Section title="Findings">
             {tickets.length === 0 && (
               <Text c="dimmed">No findings recorded yet.</Text>

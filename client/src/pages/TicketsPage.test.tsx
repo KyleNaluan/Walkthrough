@@ -18,6 +18,7 @@ function summary(
     status: 'open',
     overdue: false,
     store: {id: 1, name: 'Main St Diner'},
+    reinspectionId: null,
     ...overrides,
   };
 }
@@ -181,6 +182,7 @@ describe('TicketsPage (story 8)', () => {
       recordedAt: '2026-10-01T15:00:00Z',
       inspectionId: 1,
       fixes: [],
+      reinspections: [],
     };
     stubApi({
       '/api/tickets': tickets,
