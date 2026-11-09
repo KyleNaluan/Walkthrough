@@ -11,8 +11,13 @@ vi.mock('../src/lib/auth.js', () => ({
   signOut: vi.fn(async () => {}),
 }));
 
+// test/users-db.test.ts tests the real functions with vi.importActual.
 vi.mock('../src/db/users.js', () => ({
+  EMAIL_TAKEN: 'An account with this email already exists',
   getUserById: vi.fn(async (id: string) => findUser(id)),
+  findUserByEmail: vi.fn(async () => null),
+  listStoreOwners: vi.fn(async () => []),
+  createStoreOwner: vi.fn(),
 }));
 
 // Tests never reach Supabase: mock the src/db/* module a route uses instead.
