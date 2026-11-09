@@ -61,7 +61,7 @@ export function StoresPage() {
         (stores.data.length === 0 ? (
           <Paper p="lg">
             <Text ta="center" fw={600}>
-              No stores
+              {inspector ? 'No stores' : 'No stores yet'}
             </Text>
             <Text ta="center" c="dimmed" fz="sm">
               {inspector

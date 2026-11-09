@@ -5,6 +5,7 @@ import {landingPathFor, useAuth} from './auth/useAuth';
 import {Layout} from './components/Layout';
 import {Loading} from './components/ui/LoadState';
 import {LoginPage} from './pages/LoginPage';
+import {NewOwnerPage} from './pages/NewOwnerPage';
 import {NotFoundPage} from './pages/NotFoundPage';
 import {StoreDetailPage} from './pages/StoreDetailPage';
 import {StoresPage} from './pages/StoresPage';
@@ -47,6 +48,7 @@ export function AppRoutes() {
             }
           />
           <Route path="/tickets" element={<TicketsPage />} />
+          <Route path="/owners/new" element={<NewOwnerPage />} />
           <Route
             path="/tickets/:ticketId"
             element={

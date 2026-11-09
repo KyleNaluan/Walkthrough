@@ -45,6 +45,18 @@ describe('StoresPage', () => {
     expect(document.querySelector('a[href^="/stores/"]')).toBeNull();
   });
 
+  it('lands a new owner with no stores on "No stores yet" (AC 22.6)', async () => {
+    stubApi({'/api/stores': []});
+    renderWithAuth(<AppRoutes />, {user: owner, route: '/'});
+    expect(
+      await screen.findByRole('heading', {name: 'Stores'}),
+    ).toBeInTheDocument();
+    expect(await screen.findByText('No stores yet')).toBeInTheDocument();
+    expect(
+      screen.getByText('No stores are linked to your account yet.'),
+    ).toBeInTheDocument();
+  });
+
   it("shows the server's message when the list cannot load", async () => {
     stubApi({
       '/api/stores': Response.json(
