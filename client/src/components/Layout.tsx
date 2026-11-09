@@ -3,6 +3,7 @@ import {
   IconBuildingStore,
   IconLogout,
   IconTicket,
+  IconUserPlus,
   type Icon,
 } from '@tabler/icons-react';
 import {NavLink, Outlet, useMatch} from 'react-router';
@@ -29,6 +30,7 @@ function NavTab({
       color={active ? 'navy' : 'gray'}
       radius={0}
       h={48}
+      px="sm"
       leftSection={<TabIcon size={18} />}
       style={{
         boxShadow: active
@@ -82,6 +84,9 @@ export function Layout() {
         >
           <NavTab to="/stores" label="Stores" icon={IconBuildingStore} />
           <NavTab to="/tickets" label="Tickets" icon={IconTicket} />
+          {user?.role === 'inspector' && (
+            <NavTab to="/owners/new" label="Add owner" icon={IconUserPlus} />
+          )}
         </Group>
       </AppShell.Header>
       <AppShell.Main maw={760} mx="auto">
