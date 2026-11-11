@@ -1,7 +1,11 @@
+import {HttpError} from '../lib/errors.js';
 import {getSupabaseAdmin} from '../lib/supabase.js';
 import type {Store, StoreRow} from './types.js';
 
 const storeColumns = 'store_id, name, address, owner_id';
+
+/** The message for a store that is already in the list (AC 23.2). */
+export const STORE_TAKEN = 'A store with this name and address already exists';
 
 function toStore(row: StoreRow): Store {
   return {
@@ -44,6 +48,56 @@ export async function listStoresByOwner(ownerId: string): Promise<Store[]> {
     .overrideTypes<StoreRow[], {merge: false}>();
   if (error) throw error;
   return data.map(toStore);
+}
+
+/** True if a store has this name and address, ignoring case (AC 23.2). */
+export async function storeExists(
+  name: string,
+  address: string,
+): Promise<boolean> {
+  // ilike ignores case; escape its wildcards so they match literally.
+  const escape = (text: string) =>
+    text.replace(/[\\%_]/g, (char) => `\\${char}`);
+  const {data, error} = await getSupabaseAdmin()
+    .from('store')
+    .select('name, address')
+    .ilike('name', escape(name))
+    .ilike('address', escape(address))
+    .overrideTypes<{name: string; address: string}[], {merge: false}>();
+  if (error) throw error;
+  // PostgREST also reads * as a wildcard, so compare the rows themselves.
+  return data.some(
+    (row) =>
+      row.name.toLowerCase() === name.toLowerCase() &&
+      row.address.toLowerCase() === address.toLowerCase(),
+  );
+}
+
+export interface NewStore {
+  name: string;
+  address: string;
+  ownerId: string;
+}
+
+/**
+ * Saves a new store (story 23). The (name, address) unique constraint
+ * catches a duplicate that slips past storeExists.
+ */
+export async function createStore(store: NewStore): Promise<Store> {
+  const {data, error} = await getSupabaseAdmin()
+    .from('store')
+    .insert({
+      name: store.name,
+      address: store.address,
+      owner_id: store.ownerId,
+    })
+    .select(storeColumns)
+    .single<StoreRow>();
+  if (error) {
+    if (error.code === '23505') throw new HttpError(409, STORE_TAKEN);
+    throw error;
+  }
+  return toStore(data);
 }
 
 /** The store an inspection belongs to, or null if it doesn't exist. */
