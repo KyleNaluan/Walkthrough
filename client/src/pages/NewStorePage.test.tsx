@@ -1,4 +1,4 @@
-import {fireEvent, screen, within} from '@testing-library/react';
+import {act, fireEvent, screen, within} from '@testing-library/react';
 import {describe, expect, it} from 'vitest';
 import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
@@ -71,6 +71,28 @@ describe('NewStorePage (story 23)', () => {
     // Cleared for the next store.
     expect(screen.getByLabelText(/^Name/)).toHaveValue('');
     expect(screen.getByLabelText(/^Owner/)).toHaveValue('');
+  });
+
+  it('locks the fields while the store is saving (AC 23.1)', async () => {
+    const fetch = stubApi({'/api/users/store-owners': owners});
+    renderWithAuth(<AppRoutes />, {user: inspector, route: '/stores/new'});
+    await screen.findByLabelText(/^Owner/);
+    let respond: (res: Response) => void = () => {};
+    fetch.mockImplementationOnce(
+      () => new Promise<Response>((resolve) => (respond = resolve)),
+    );
+    fill(validValues);
+    submit();
+    expect(screen.getByLabelText(/^Name/)).toBeDisabled();
+    expect(screen.getByLabelText(/^Address/)).toBeDisabled();
+    expect(screen.getByLabelText(/^Owner/)).toBeDisabled();
+    await act(async () =>
+      respond(Response.json({id: 42, ...validValues}, {status: 201})),
+    );
+    expect(
+      await screen.findByText('Store added: Corner Deli'),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Name/)).toBeEnabled();
   });
 
   it('shows the duplicate message and keeps what was typed (AC 23.2)', async () => {

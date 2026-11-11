@@ -87,18 +87,21 @@ function NewStoreForm({owners}: {owners: User[]}) {
               label="Name"
               withAsterisk
               autoComplete="off"
+              disabled={busy}
               {...form.getInputProps('name')}
             />
             <TextInput
               label="Address"
               withAsterisk
               autoComplete="off"
+              disabled={busy}
               {...form.getInputProps('address')}
             />
             <NativeSelect
               label="Owner"
               size="md"
               withAsterisk
+              disabled={busy}
               data={[
                 {value: '', label: 'Choose an owner'},
                 ...owners.map((owner) => ({
