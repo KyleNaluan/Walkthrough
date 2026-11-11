@@ -1,5 +1,9 @@
-import {Group, Paper, Stack, Text, UnstyledButton} from '@mantine/core';
-import {IconBuildingStore, IconChevronRight} from '@tabler/icons-react';
+import {Button, Group, Paper, Stack, Text, UnstyledButton} from '@mantine/core';
+import {
+  IconBuildingStore,
+  IconChevronRight,
+  IconPlus,
+} from '@tabler/icons-react';
 import {Link} from 'react-router';
 import {useAuth} from '../auth/useAuth';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
@@ -52,6 +56,18 @@ export function StoresPage() {
       <PageHeader
         eyebrow={inspector ? 'All stores' : 'Your stores'}
         title="Stores"
+        actions={
+          // The server refuses owners too (AC 23.6).
+          inspector && (
+            <Button
+              component={Link}
+              to="/stores/new"
+              leftSection={<IconPlus size={16} />}
+            >
+              Add store
+            </Button>
+          )
+        }
       />
       {stores.status === 'loading' && <Loading />}
       {stores.status === 'error' && (

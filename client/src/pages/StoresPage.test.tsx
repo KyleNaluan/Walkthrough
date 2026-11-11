@@ -42,7 +42,9 @@ describe('StoresPage', () => {
     stubApi({'/api/stores': []});
     renderWithAuth(<AppRoutes />, {user: inspector, route: '/stores'});
     expect(await screen.findByText('No stores')).toBeInTheDocument();
-    expect(document.querySelector('a[href^="/stores/"]')).toBeNull();
+    expect(
+      document.querySelector('a[href^="/stores/"]:not([href="/stores/new"])'),
+    ).toBeNull();
   });
 
   it('lands a new owner with no stores on "No stores yet" (AC 22.6)', async () => {
@@ -68,5 +70,24 @@ describe('StoresPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Internal server error',
     );
+  });
+
+  it('shows an inspector an Add store button that opens the form (AC 23.1)', async () => {
+    stubApi({'/api/stores': stores, '/api/users/store-owners': [owner]});
+    renderWithAuth(<AppRoutes />, {user: inspector, route: '/stores'});
+    fireEvent.click(await screen.findByRole('link', {name: 'Add store'}));
+    expect(
+      await screen.findByRole('heading', {name: 'Add store'}),
+    ).toBeInTheDocument();
+    expect(await screen.findByLabelText(/^Owner/)).toBeInTheDocument();
+  });
+
+  it('shows Add store only to inspectors (AC 23.6)', async () => {
+    stubApi({'/api/stores': stores.slice(0, 2)});
+    renderWithAuth(<AppRoutes />, {user: owner, route: '/stores'});
+    expect(await screen.findByText('2 stores')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('link', {name: 'Add store'}),
+    ).not.toBeInTheDocument();
   });
 });
