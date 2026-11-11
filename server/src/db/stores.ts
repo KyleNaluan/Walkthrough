@@ -50,27 +50,27 @@ export async function listStoresByOwner(ownerId: string): Promise<Store[]> {
   return data.map(toStore);
 }
 
+/** A regex that matches exactly this text, with no wildcards. */
+function exactly(text: string): string {
+  return `^${text.replace(/[\\^$.|?*+()[\]{}]/g, (char) => `\\${char}`)}$`;
+}
+
 /** True if a store has this name and address, ignoring case (AC 23.2). */
 export async function storeExists(
   name: string,
   address: string,
 ): Promise<boolean> {
-  // ilike ignores case; escape its wildcards so they match literally.
-  const escape = (text: string) =>
-    text.replace(/[\\%_]/g, (char) => `\\${char}`);
+  // ~* ignores case. Unlike ilike, it has no * wildcard that could widen the
+  // query past PostgREST's row limit, so one row is enough.
   const {data, error} = await getSupabaseAdmin()
     .from('store')
-    .select('name, address')
-    .ilike('name', escape(name))
-    .ilike('address', escape(address))
-    .overrideTypes<{name: string; address: string}[], {merge: false}>();
+    .select('store_id')
+    .regexIMatch('name', exactly(name))
+    .regexIMatch('address', exactly(address))
+    .limit(1)
+    .overrideTypes<{store_id: number}[], {merge: false}>();
   if (error) throw error;
-  // PostgREST also reads * as a wildcard, so compare the rows themselves.
-  return data.some(
-    (row) =>
-      row.name.toLowerCase() === name.toLowerCase() &&
-      row.address.toLowerCase() === address.toLowerCase(),
-  );
+  return data.length > 0;
 }
 
 export interface NewStore {
