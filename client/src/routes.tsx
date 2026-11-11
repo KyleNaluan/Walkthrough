@@ -6,6 +6,7 @@ import {Layout} from './components/Layout';
 import {Loading} from './components/ui/LoadState';
 import {LoginPage} from './pages/LoginPage';
 import {NewOwnerPage} from './pages/NewOwnerPage';
+import {NewStorePage} from './pages/NewStorePage';
 import {NotFoundPage} from './pages/NotFoundPage';
 import {StoreDetailPage} from './pages/StoreDetailPage';
 import {StoresPage} from './pages/StoresPage';
@@ -38,6 +39,7 @@ export function AppRoutes() {
         <Route element={<Layout />}>
           <Route index element={<Home />} />
           <Route path="/stores" element={<StoresPage />} />
+          <Route path="/stores/new" element={<NewStorePage />} />
           <Route path="/stores/:storeId" element={<StoreDetailPage />} />
           <Route
             path="/inspections/:inspectionId"
