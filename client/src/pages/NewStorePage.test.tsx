@@ -70,6 +70,7 @@ describe('NewStorePage (story 23)', () => {
     expect(postedBody(fetch)).toEqual(validValues);
     // Cleared for the next store.
     expect(screen.getByLabelText(/^Name/)).toHaveValue('');
+    expect(screen.getByLabelText(/^Address/)).toHaveValue('');
     expect(screen.getByLabelText(/^Owner/)).toHaveValue('');
   });
 
