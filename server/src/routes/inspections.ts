@@ -1,5 +1,6 @@
 import {Router} from 'express';
 import {z} from 'zod';
+import * as checklist from '../db/checklist.js';
 import * as inspections from '../db/inspections.js';
 import * as tickets from '../db/tickets.js';
 import * as users from '../db/users.js';
@@ -25,7 +26,8 @@ import {
 } from '../lib/validate.js';
 import {requireRole, requireUser} from '../middleware/auth.js';
 
-// Stories 5 (start an inspection), 6 (record a finding) and 7 (finding photo).
+// Stories 5 (start an inspection), 6 (record a finding), 7 (finding photo)
+// and 15 (inspection checklist).
 export const inspectionsRouter = Router();
 
 const storeParams = z.object({storeId: idParam});
@@ -103,5 +105,15 @@ inspectionsRouter.get(
     const path = await tickets.getTicketPhoto(ticketId);
     if (!path) throw new HttpError(404, 'Photo not found');
     res.json({url: await signedPhotoUrl(path)});
+  },
+);
+
+inspectionsRouter.get(
+  '/inspections/:inspectionId/checklist',
+  requireUser,
+  async (req, res) => {
+    const {inspectionId} = parseParams(inspectionParams, req);
+    await assertInspectionAccess(req.user!, inspectionId);
+    res.json(await checklist.listChecklist(inspectionId));
   },
 );
