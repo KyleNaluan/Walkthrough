@@ -59,11 +59,16 @@ function ChecklistRow({
   // What the control shows: the saved answer, or a Fail waiting for its
   // finding.
   const [choice, setChoice] = useState(entry.answer);
-  const [busy, setBusy] = useState(false);
+  // The answer being sent; the row is locked until the server replies.
+  const [sending, setSending] = useState<{
+    answer: ChecklistAnswer;
+    ticketId: number | null;
+  } | null>(null);
+  const busy = sending !== null;
   const [error, setError] = useState<string | null>(null);
 
   async function save(answer: ChecklistAnswer, ticketId: number | null) {
-    setBusy(true);
+    setSending({answer, ticketId});
     setError(null);
     try {
       const result = await apiPut<ChecklistEntry>(
@@ -76,7 +81,7 @@ function ChecklistRow({
       setError(err instanceof ApiError ? err.message : 'Could not save');
       setChoice(saved.answer);
     }
-    setBusy(false);
+    setSending(null);
   }
 
   function pick(value: string) {
@@ -87,7 +92,8 @@ function ChecklistRow({
     if (answer !== 'fail') void save(answer, null);
   }
 
-  const findingId = saved.answer === 'fail' ? String(saved.ticketId) : '';
+  const shown = sending ?? saved;
+  const findingId = shown.answer === 'fail' ? String(shown.ticketId) : '';
   return (
     <Paper withBorder p="sm" role="group" aria-label={entry.text}>
       <Text mb="xs">{entry.text}</Text>
