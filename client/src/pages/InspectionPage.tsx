@@ -141,7 +141,10 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
               inspectionId={inspection.data.id}
             />
           )}
-          <Checklist inspectionId={inspection.data.id} />
+          <Checklist
+            inspectionId={inspection.data.id}
+            canAnswer={user?.role === 'inspector'}
+          />
           <Section title="Findings">
             {tickets.length === 0 && (
               <Text c="dimmed">No findings recorded yet.</Text>

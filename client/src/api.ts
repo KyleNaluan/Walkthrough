@@ -62,6 +62,11 @@ export function apiPost<T>(path: string, body: unknown): Promise<T> {
   return request<T>('POST', path, JSON.stringify(body), 'application/json');
 }
 
+/** PUTs a JSON body to the API. */
+export function apiPut<T>(path: string, body: unknown): Promise<T> {
+  return request<T>('PUT', path, JSON.stringify(body), 'application/json');
+}
+
 /** POSTs a form with a file; the browser sets the multipart Content-Type. */
 export function apiUpload<T>(path: string, formData: FormData): Promise<T> {
   return request<T>('POST', path, formData);

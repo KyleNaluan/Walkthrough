@@ -563,6 +563,7 @@ describe('re-inspections (story 12)', () => {
 });
 
 const checklistPath = '/api/inspections/7/checklist';
+const answerPath = 'PUT /api/inspections/7/checklist/1';
 
 /** Items 1-3 of the standard checklist, none answered yet. */
 const checklist: ChecklistEntry[] = [
@@ -576,7 +577,74 @@ function itemRow(index: number) {
   return screen.findByRole('group', {name: checklist[index].text});
 }
 
+/** The answers the page sent for item 1. */
+function sentAnswers(fetch: ReturnType<typeof stubApi>) {
+  return fetch.mock.calls
+    .filter(
+      ([path, init]) =>
+        path === '/api/inspections/7/checklist/1' && init?.method === 'PUT',
+    )
+    .map(([, init]) => JSON.parse(init!.body as string));
+}
+
 describe('checklist (story 15)', () => {
+  it('shows every checklist item, none answered yet (AC 15.1)', async () => {
+    await openAsInspector({[checklistPath]: checklist});
+    for (const index of [0, 1, 2]) {
+      const row = await itemRow(index);
+      for (const name of ['Pass', 'Fail', 'N/A']) {
+        expect(within(row).getByRole('radio', {name})).not.toBeChecked();
+      }
+    }
+  });
+
+  it('saves Pass and shows it next to the item (AC 15.1)', async () => {
+    const fetch = await openAsInspector({
+      [checklistPath]: checklist,
+      [answerPath]: {...checklist[0], answer: 'pass'},
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Pass'}));
+    await waitFor(() =>
+      expect(within(row).getByRole('radio', {name: 'Pass'})).toBeEnabled(),
+    );
+    expect(within(row).getByRole('radio', {name: 'Pass'})).toBeChecked();
+    expect(sentAnswers(fetch)).toEqual([{answer: 'pass', ticketId: null}]);
+  });
+
+  it('locks an item while its answer saves (AC 15.1)', async () => {
+    await openAsInspector({
+      [checklistPath]: checklist,
+      [answerPath]: {...checklist[0], answer: 'na'},
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'N/A'}));
+    expect(within(row).getByRole('radio', {name: 'Pass'})).toBeDisabled();
+    await waitFor(() =>
+      expect(within(row).getByRole('radio', {name: 'Pass'})).toBeEnabled(),
+    );
+    expect(within(row).getByRole('radio', {name: 'N/A'})).toBeChecked();
+  });
+
+  it('changes a saved answer and shows the new one (AC 15.3)', async () => {
+    const fetch = await openAsInspector({
+      [checklistPath]: [
+        {...checklist[0], answer: 'pass'},
+        ...checklist.slice(1),
+      ],
+      [answerPath]: {...checklist[0], answer: 'na'},
+    });
+    const row = await itemRow(0);
+    expect(within(row).getByRole('radio', {name: 'Pass'})).toBeChecked();
+    fireEvent.click(within(row).getByRole('radio', {name: 'N/A'}));
+    await waitFor(() =>
+      expect(within(row).getByRole('radio', {name: 'N/A'})).toBeEnabled(),
+    );
+    expect(within(row).getByRole('radio', {name: 'N/A'})).toBeChecked();
+    expect(within(row).getByRole('radio', {name: 'Pass'})).not.toBeChecked();
+    expect(sentAnswers(fetch)).toEqual([{answer: 'na', ticketId: null}]);
+  });
+
   it("shows the store's owner each item and its answer, with nothing to change (AC 15.5)", async () => {
     const fetch = stubApi({
       '/api/inspections/7': {...inspection, tickets: [ticket]},
@@ -611,5 +679,25 @@ describe('checklist (story 15)', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       'Internal server error',
     );
+  });
+
+  it('keeps the saved answer and shows the message when a save is refused', async () => {
+    await openAsInspector({
+      [checklistPath]: [
+        {...checklist[0], answer: 'pass'},
+        ...checklist.slice(1),
+      ],
+      [answerPath]: Response.json(
+        {error: 'Checklist item not found'},
+        {status: 404},
+      ),
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'N/A'}));
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      'Checklist item not found',
+    );
+    expect(within(row).getByRole('radio', {name: 'Pass'})).toBeChecked();
+    expect(within(row).getByRole('radio', {name: 'N/A'})).not.toBeChecked();
   });
 });

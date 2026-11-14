@@ -1,10 +1,24 @@
-import {Group, Paper, Text} from '@mantine/core';
+import {Alert, Group, Paper, SegmentedControl, Text} from '@mantine/core';
+import {IconAlertCircle} from '@tabler/icons-react';
+import {useState} from 'react';
+import {ApiError, apiPut} from '../api';
 import {useApi} from '../lib/useApi';
-import {recordNumber} from '../status';
-import type {ChecklistEntry} from '../types';
+import {CHECKLIST_ANSWER, recordNumber} from '../status';
+import type {ChecklistAnswer, ChecklistEntry} from '../types';
 import {AnswerBadge} from './ui/Badges';
 import {LoadFailed, Loading} from './ui/LoadState';
 import {Section} from './ui/Section';
+
+const ANSWERS = (['pass', 'fail', 'na'] as const).map((value) => ({
+  value,
+  label: CHECKLIST_ANSWER[value].label,
+}));
+
+/** The theme's gray shade reads as black on the control, so N/A is lighter. */
+function indicatorColor(answer: ChecklistAnswer | null) {
+  if (answer === 'na') return 'gray.6';
+  return answer ? CHECKLIST_ANSWER[answer].color : undefined;
+}
 
 /** An item and its answer, with nothing to change (AC 15.5). */
 function ChecklistResult({entry}: {entry: ChecklistEntry}) {
@@ -23,8 +37,80 @@ function ChecklistResult({entry}: {entry: ChecklistEntry}) {
   );
 }
 
-/** An inspection's standard checklist (story 15), each item with its answer. */
-export function Checklist({inspectionId}: {inspectionId: number}) {
+function ChecklistRow({
+  entry,
+  inspectionId,
+}: {
+  entry: ChecklistEntry;
+  inspectionId: number;
+}) {
+  const [saved, setSaved] = useState(entry);
+  // What the control shows: the answer being saved, then the saved one.
+  const [choice, setChoice] = useState(entry.answer);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save(answer: ChecklistAnswer, ticketId: number | null) {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await apiPut<ChecklistEntry>(
+        `/api/inspections/${inspectionId}/checklist/${entry.id}`,
+        {answer, ticketId},
+      );
+      setSaved(result);
+      setChoice(result.answer);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not save');
+      setChoice(saved.answer);
+    }
+    setBusy(false);
+  }
+
+  function pick(value: string) {
+    const answer = value as ChecklistAnswer;
+    setChoice(answer);
+    setError(null);
+    void save(answer, null);
+  }
+
+  return (
+    <Paper withBorder p="sm" role="group" aria-label={entry.text}>
+      <Text mb="xs">{entry.text}</Text>
+      <SegmentedControl
+        fullWidth
+        size="md"
+        data={ANSWERS}
+        value={choice ?? ''}
+        color={indicatorColor(choice)}
+        disabled={busy}
+        onChange={pick}
+      />
+      {error && (
+        <Alert
+          color="red"
+          variant="light"
+          icon={<IconAlertCircle size={18} />}
+          mt="xs"
+        >
+          {error}
+        </Alert>
+      )}
+    </Paper>
+  );
+}
+
+/**
+ * An inspection's standard checklist (story 15). Inspectors answer each item
+ * Pass, Fail or N/A. Store owners see the answers only.
+ */
+export function Checklist({
+  inspectionId,
+  canAnswer,
+}: {
+  inspectionId: number;
+  canAnswer: boolean;
+}) {
   const checklist = useApi<ChecklistEntry[]>(
     `/api/inspections/${inspectionId}/checklist`,
   );
@@ -35,9 +121,17 @@ export function Checklist({inspectionId}: {inspectionId: number}) {
         <LoadFailed message={checklist.error.message} />
       )}
       {checklist.status === 'done' &&
-        checklist.data.map((entry) => (
-          <ChecklistResult key={entry.id} entry={entry} />
-        ))}
+        checklist.data.map((entry) =>
+          canAnswer ? (
+            <ChecklistRow
+              key={entry.id}
+              entry={entry}
+              inspectionId={inspectionId}
+            />
+          ) : (
+            <ChecklistResult key={entry.id} entry={entry} />
+          ),
+        )}
     </Section>
   );
 }
