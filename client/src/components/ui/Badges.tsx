@@ -1,7 +1,7 @@
 import {Badge} from '@mantine/core';
 import {IconAlertTriangle, IconClockExclamation} from '@tabler/icons-react';
-import {SEVERITY, TICKET_STATUS} from '../../status';
-import type {Severity, TicketStatus} from '../../types';
+import {CHECKLIST_ANSWER, SEVERITY, TICKET_STATUS} from '../../status';
+import type {ChecklistAnswer, Severity, TicketStatus} from '../../types';
 
 export function StatusBadge({status}: {status: TicketStatus}) {
   const {label, color} = TICKET_STATUS[status];
@@ -33,6 +33,22 @@ export function OverdueBadge() {
       leftSection={<IconClockExclamation size={12} />}
     >
       Overdue
+    </Badge>
+  );
+}
+
+export function AnswerBadge({answer}: {answer: ChecklistAnswer | null}) {
+  if (!answer) {
+    return (
+      <Badge color="gray" variant="outline">
+        Not answered
+      </Badge>
+    );
+  }
+  const {label, color} = CHECKLIST_ANSWER[answer];
+  return (
+    <Badge color={color} variant="light">
+      {label}
     </Badge>
   );
 }

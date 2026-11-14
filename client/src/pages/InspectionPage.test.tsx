@@ -6,7 +6,7 @@ import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
 import {inspection, inspector, owner, stores, ticket} from '../test/users';
-import type {TicketSummary} from '../types';
+import type {ChecklistEntry, TicketSummary} from '../types';
 
 // Photos go up unchanged unless a test shrinks them.
 vi.mock('../lib/resizeImage', () => ({
@@ -28,7 +28,11 @@ const photo = new File(['png'], 'photo.png', {type: 'image/png'});
 
 /** Opens inspection 7 as the inspector, the server also answering `routes`. */
 async function openAsInspector(routes: Record<string, unknown> = {}) {
-  const fetch = stubApi({'/api/inspections/7': inspection, ...routes});
+  const fetch = stubApi({
+    '/api/inspections/7': inspection,
+    '/api/inspections/7/checklist': [],
+    ...routes,
+  });
   renderWithAuth(<AppRoutes />, {user: inspector, route: '/inspections/7'});
   await screen.findByRole('button', {name: 'Save finding'});
   return fetch;
@@ -73,6 +77,7 @@ async function openWithFinding(
 ) {
   const fetch = stubApi({
     '/api/inspections/7': {...inspection, tickets: [ticket]},
+    '/api/inspections/7/checklist': [],
     '/api/tickets/12/photo': photoLink,
   });
   renderWithAuth(<AppRoutes />, {user, route: '/inspections/7'});
@@ -554,5 +559,57 @@ describe('re-inspections (story 12)', () => {
     expect(await screen.findByText('INS-0007')).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Passed'})).toBeNull();
     expect(fetch.mock.calls.some(([path]) => path === duePath)).toBe(false);
+  });
+});
+
+const checklistPath = '/api/inspections/7/checklist';
+
+/** Items 1-3 of the standard checklist, none answered yet. */
+const checklist: ChecklistEntry[] = [
+  'Hand-washing sinks are stocked and free to use',
+  'Cold food is held at 41 °F or below',
+  'Hot food is held at 135 °F or above',
+].map((text, index) => ({id: index + 1, text, answer: null, ticketId: null}));
+
+/** The row of checklist item `index`. */
+function itemRow(index: number) {
+  return screen.findByRole('group', {name: checklist[index].text});
+}
+
+describe('checklist (story 15)', () => {
+  it("shows the store's owner each item and its answer, with nothing to change (AC 15.5)", async () => {
+    const fetch = stubApi({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: [
+        {...checklist[0], answer: 'fail', ticketId: 12},
+        {...checklist[1], answer: 'pass'},
+        checklist[2],
+      ],
+    });
+    renderWithAuth(<AppRoutes />, {user: owner, route: '/inspections/7'});
+    const failed = await itemRow(0);
+    expect(within(failed).getByText('Fail')).toBeInTheDocument();
+    expect(within(failed).getByText('T-0012')).toBeInTheDocument();
+    expect(within(await itemRow(1)).getByText('Pass')).toBeInTheDocument();
+    expect(
+      within(await itemRow(2)).getByText('Not answered'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(
+      false,
+    );
+  });
+
+  it("shows the server's message when the checklist cannot be loaded", async () => {
+    await openAsInspector({
+      [checklistPath]: Response.json(
+        {error: 'Internal server error'},
+        {status: 500},
+      ),
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Internal server error',
+    );
   });
 });

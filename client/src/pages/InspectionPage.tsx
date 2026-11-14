@@ -4,6 +4,7 @@ import {useState} from 'react';
 import {Link, useParams} from 'react-router';
 import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
+import {Checklist} from '../components/Checklist';
 import {FindingForm} from '../components/FindingForm';
 import {Photo} from '../components/Photo';
 import {ReinspectionList} from '../components/tickets/ReinspectionList';
@@ -76,8 +77,8 @@ function FindingRow({ticket}: {ticket: Ticket}) {
 
 /**
  * One inspection: its store, inspector and start time (story 5), its
- * findings (story 6) with their photos (story 7), and for inspectors the
- * store's re-inspections due (story 12).
+ * findings (story 6) with their photos (story 7), for inspectors the store's
+ * re-inspections due (story 12), and its checklist (story 15).
  */
 export function InspectionPage() {
   const {inspectionId} = useParams();
@@ -140,6 +141,7 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
               inspectionId={inspection.data.id}
             />
           )}
+          <Checklist inspectionId={inspection.data.id} />
           <Section title="Findings">
             {tickets.length === 0 && (
               <Text c="dimmed">No findings recorded yet.</Text>

@@ -1,4 +1,4 @@
-import type {Severity, TicketStatus} from './types';
+import type {ChecklistAnswer, Severity, TicketStatus} from './types';
 
 /** Status names as the AC write them, with one colour each. */
 export const TICKET_STATUS: Record<
@@ -16,6 +16,15 @@ export const SEVERITY: Record<Severity, {label: string; color: string}> = {
   low: {label: 'Low', color: 'yellow'},
   medium: {label: 'Medium', color: 'orange'},
   high: {label: 'High', color: 'red'},
+};
+
+export const CHECKLIST_ANSWER: Record<
+  ChecklistAnswer,
+  {label: string; color: string}
+> = {
+  pass: {label: 'Pass', color: 'green'},
+  fail: {label: 'Fail', color: 'red'},
+  na: {label: 'N/A', color: 'gray'},
 };
 
 /** A record number such as T-0007, as printed on an inspection form. */
