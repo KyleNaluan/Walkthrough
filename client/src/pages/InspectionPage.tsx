@@ -143,6 +143,7 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
           )}
           <Checklist
             inspectionId={inspection.data.id}
+            tickets={tickets}
             canAnswer={user?.role === 'inspector'}
           />
           <Section title="Findings">

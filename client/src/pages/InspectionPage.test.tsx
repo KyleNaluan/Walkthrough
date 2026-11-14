@@ -626,6 +626,58 @@ describe('checklist (story 15)', () => {
     expect(within(row).getByRole('radio', {name: 'N/A'})).toBeChecked();
   });
 
+  it('shows "Record a finding for a failed item" and sends nothing when Fail has no finding (AC 15.2)', async () => {
+    const fetch = await openAsInspector({[checklistPath]: checklist});
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    expect(
+      within(row).getByText('Record a finding for a failed item'),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByText('Record the finding below, then choose it here.'),
+    ).toBeInTheDocument();
+    expect(sentAnswers(fetch)).toEqual([]);
+  });
+
+  it("saves a Fail once one of this inspection's findings is chosen (AC 15.2)", async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: checklist,
+      [answerPath]: {...checklist[0], answer: 'fail', ticketId: 12},
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    fireEvent.change(within(row).getByLabelText(/^Finding for this item/), {
+      target: {value: '12'},
+    });
+    await waitFor(() =>
+      expect(
+        within(row).queryByText('Record a finding for a failed item'),
+      ).not.toBeInTheDocument(),
+    );
+    expect(within(row).getByLabelText(/^Finding for this item/)).toHaveValue(
+      '12',
+    );
+    expect(within(row).getByRole('radio', {name: 'Fail'})).toBeChecked();
+    expect(sentAnswers(fetch)).toEqual([{answer: 'fail', ticketId: 12}]);
+  });
+
+  it('offers a finding just recorded on this page for a failed item (AC 15.2)', async () => {
+    await openAsInspector({
+      [checklistPath]: checklist,
+      '/api/inspections/7/tickets': Response.json(ticket, {status: 201}),
+    });
+    saveFinding();
+    await screen.findByText('T-0012');
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    expect(
+      within(row).getByRole('option', {
+        name: 'T-0012 Raw chicken stored above salad',
+      }),
+    ).toBeInTheDocument();
+  });
+
   it('changes a saved answer and shows the new one (AC 15.3)', async () => {
     const fetch = await openAsInspector({
       [checklistPath]: [

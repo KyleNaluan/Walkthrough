@@ -1,13 +1,22 @@
-import {Alert, Group, Paper, SegmentedControl, Text} from '@mantine/core';
+import {
+  Alert,
+  Group,
+  NativeSelect,
+  Paper,
+  SegmentedControl,
+  Text,
+} from '@mantine/core';
 import {IconAlertCircle} from '@tabler/icons-react';
 import {useState} from 'react';
 import {ApiError, apiPut} from '../api';
 import {useApi} from '../lib/useApi';
 import {CHECKLIST_ANSWER, recordNumber} from '../status';
-import type {ChecklistAnswer, ChecklistEntry} from '../types';
+import type {ChecklistAnswer, ChecklistEntry, Ticket} from '../types';
 import {AnswerBadge} from './ui/Badges';
 import {LoadFailed, Loading} from './ui/LoadState';
 import {Section} from './ui/Section';
+
+const FINDING_REQUIRED = 'Record a finding for a failed item';
 
 const ANSWERS = (['pass', 'fail', 'na'] as const).map((value) => ({
   value,
@@ -40,12 +49,15 @@ function ChecklistResult({entry}: {entry: ChecklistEntry}) {
 function ChecklistRow({
   entry,
   inspectionId,
+  tickets,
 }: {
   entry: ChecklistEntry;
   inspectionId: number;
+  tickets: Ticket[];
 }) {
   const [saved, setSaved] = useState(entry);
-  // What the control shows: the answer being saved, then the saved one.
+  // What the control shows: the saved answer, or a Fail waiting for its
+  // finding.
   const [choice, setChoice] = useState(entry.answer);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,9 +83,11 @@ function ChecklistRow({
     const answer = value as ChecklistAnswer;
     setChoice(answer);
     setError(null);
-    void save(answer, null);
+    // A Fail is sent once its finding is chosen (AC 15.2).
+    if (answer !== 'fail') void save(answer, null);
   }
 
+  const findingId = saved.answer === 'fail' ? String(saved.ticketId) : '';
   return (
     <Paper withBorder p="sm" role="group" aria-label={entry.text}>
       <Text mb="xs">{entry.text}</Text>
@@ -86,6 +100,32 @@ function ChecklistRow({
         disabled={busy}
         onChange={pick}
       />
+      {choice === 'fail' && (
+        <NativeSelect
+          label="Finding for this item"
+          size="md"
+          description={
+            tickets.length === 0
+              ? 'Record the finding below, then choose it here.'
+              : undefined
+          }
+          data={[
+            {value: '', label: 'Choose a finding'},
+            ...tickets.map((ticket) => ({
+              value: String(ticket.id),
+              label: `${recordNumber('T', ticket.id)} ${ticket.description}`,
+            })),
+          ]}
+          value={findingId}
+          error={findingId ? undefined : FINDING_REQUIRED}
+          disabled={busy}
+          onChange={(event) => {
+            const id = event.currentTarget.value;
+            if (id) void save('fail', Number(id));
+          }}
+          mt="xs"
+        />
+      )}
       {error && (
         <Alert
           color="red"
@@ -102,13 +142,16 @@ function ChecklistRow({
 
 /**
  * An inspection's standard checklist (story 15). Inspectors answer each item
- * Pass, Fail or N/A. Store owners see the answers only.
+ * Pass, Fail or N/A, and a Fail names one of `tickets`, this inspection's
+ * findings. Store owners see the answers only.
  */
 export function Checklist({
   inspectionId,
+  tickets,
   canAnswer,
 }: {
   inspectionId: number;
+  tickets: Ticket[];
   canAnswer: boolean;
 }) {
   const checklist = useApi<ChecklistEntry[]>(
@@ -127,6 +170,7 @@ export function Checklist({
               key={entry.id}
               entry={entry}
               inspectionId={inspectionId}
+              tickets={tickets}
             />
           ) : (
             <ChecklistResult key={entry.id} entry={entry} />
