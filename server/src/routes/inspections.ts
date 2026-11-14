@@ -18,6 +18,7 @@ import {
   validatePhoto,
 } from '../lib/photos.js';
 import {
+  idField,
   idParam,
   nonBlank,
   notInPast,
@@ -38,6 +39,13 @@ const findingBody = z.object({
   severity: z.enum(['low', 'medium', 'high'], 'Severity is required'),
   deadline: notInPast('Deadline'),
 });
+const checklistParams = z.object({inspectionId: idParam, itemId: idParam});
+const answerBody = z.object({
+  answer: z.enum(['pass', 'fail', 'na'], 'Answer must be Pass, Fail or N/A'),
+  ticketId: idField.nullish(),
+});
+
+const FINDING_REQUIRED = 'Record a finding for a failed item';
 
 // The inspector comes from the session, never the request body (AC 5.1).
 inspectionsRouter.post(
@@ -115,5 +123,42 @@ inspectionsRouter.get(
     const {inspectionId} = parseParams(inspectionParams, req);
     await assertInspectionAccess(req.user!, inspectionId);
     res.json(await checklist.listChecklist(inspectionId));
+  },
+);
+
+// requireRole runs before the params or body are read, so a store owner is
+// refused whatever they send (AC 15.4). Every check runs before the answer
+// is saved, so a refused answer saves nothing.
+inspectionsRouter.put(
+  '/inspections/:inspectionId/checklist/:itemId',
+  requireUser,
+  requireRole('inspector'),
+  async (req, res) => {
+    const {inspectionId, itemId} = parseParams(checklistParams, req);
+    await assertInspectionAccess(req.user!, inspectionId);
+    const {answer, ticketId} = parseBody(answerBody, req);
+    const item = (await checklist.listChecklist(inspectionId)).find(
+      (entry) => entry.id === itemId,
+    );
+    if (!item) throw new HttpError(404, 'Checklist item not found');
+    if (answer === 'fail') {
+      // A missing finding and one from another inspection are both refused
+      // (AC 15.2).
+      const findings = await tickets.listTicketsForInspection(inspectionId);
+      if (!findings.some((ticket) => ticket.id === ticketId)) {
+        throw new HttpError(400, FINDING_REQUIRED, {
+          ticketId: FINDING_REQUIRED,
+        });
+      }
+    }
+    // Only a failed item keeps a finding (fail_needs_finding in
+    // 004_checklist.sql).
+    const saved = {
+      ...item,
+      answer,
+      ticketId: answer === 'fail' ? ticketId! : null,
+    };
+    await checklist.saveAnswer(inspectionId, itemId, answer, saved.ticketId);
+    res.json(saved);
   },
 );
