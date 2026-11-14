@@ -88,6 +88,8 @@ The schema lives in `database/`, as numbered scripts that each run **once** in t
 
 - `001_schema.sql`: tables, value lists and access settings. It has already run on the shared project.
 - `002_status_functions.sql`: the `submit_fix` and `review_fix` functions that change a ticket's status. Run it once, after `001`.
+- `003_reinspection_result.sql`: the `record_reinspection` function that records a re-inspection as passed or failed. Run it once, after `002`.
+- `004_checklist.sql`: the standard checklist items and each inspection's answers. Run it once, after `003`.
 
 A later change to the database gets its own new script (`003_...`). Never edit a script that has already run.
 
