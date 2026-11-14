@@ -1,4 +1,5 @@
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {useNavigate} from 'react-router';
 import {describe, expect, it, vi} from 'vitest';
 import {resizeImage} from '../lib/resizeImage';
@@ -682,6 +683,33 @@ describe('checklist (story 15)', () => {
     respond(Response.json({...checklist[0], answer: 'fail', ticketId: 12}));
     await waitFor(() => expect(select).toBeEnabled());
     expect(select).toHaveValue('12');
+  });
+
+  it('locks the finding while a Fail saves (AC 15.2)', async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {
+        ...inspection,
+        tickets: [
+          ticket,
+          {...ticket, id: 13, description: 'No soap at hand sink'},
+        ],
+      },
+      [checklistPath]: checklist,
+    });
+    const row = await itemRow(0);
+    let respond!: (res: Response) => void;
+    fetch.mockImplementationOnce(
+      () => new Promise((resolve) => (respond = resolve)),
+    );
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    const select = within(row).getByLabelText(/^Finding for this item/);
+    fireEvent.change(select, {target: {value: '12'}});
+    expect(select).toBeDisabled();
+    await userEvent.selectOptions(select, '13');
+    expect(sentAnswers(fetch)).toEqual([{answer: 'fail', ticketId: 12}]);
+    respond(Response.json({...checklist[0], answer: 'fail', ticketId: 12}));
+    await waitFor(() => expect(select).toBeEnabled());
+    expect(sentAnswers(fetch)).toEqual([{answer: 'fail', ticketId: 12}]);
   });
 
   it('offers a finding just recorded on this page for a failed item (AC 15.2)', async () => {
