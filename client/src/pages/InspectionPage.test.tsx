@@ -1,4 +1,5 @@
 import {fireEvent, screen, waitFor, within} from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import {useNavigate} from 'react-router';
 import {describe, expect, it, vi} from 'vitest';
 import {resizeImage} from '../lib/resizeImage';
@@ -6,7 +7,7 @@ import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
 import {inspection, inspector, owner, stores, ticket} from '../test/users';
-import type {TicketSummary} from '../types';
+import type {ChecklistEntry, TicketSummary} from '../types';
 
 // Photos go up unchanged unless a test shrinks them.
 vi.mock('../lib/resizeImage', () => ({
@@ -28,7 +29,11 @@ const photo = new File(['png'], 'photo.png', {type: 'image/png'});
 
 /** Opens inspection 7 as the inspector, the server also answering `routes`. */
 async function openAsInspector(routes: Record<string, unknown> = {}) {
-  const fetch = stubApi({'/api/inspections/7': inspection, ...routes});
+  const fetch = stubApi({
+    '/api/inspections/7': inspection,
+    '/api/inspections/7/checklist': [],
+    ...routes,
+  });
   renderWithAuth(<AppRoutes />, {user: inspector, route: '/inspections/7'});
   await screen.findByRole('button', {name: 'Save finding'});
   return fetch;
@@ -73,6 +78,7 @@ async function openWithFinding(
 ) {
   const fetch = stubApi({
     '/api/inspections/7': {...inspection, tickets: [ticket]},
+    '/api/inspections/7/checklist': [],
     '/api/tickets/12/photo': photoLink,
   });
   renderWithAuth(<AppRoutes />, {user, route: '/inspections/7'});
@@ -554,5 +560,246 @@ describe('re-inspections (story 12)', () => {
     expect(await screen.findByText('INS-0007')).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Passed'})).toBeNull();
     expect(fetch.mock.calls.some(([path]) => path === duePath)).toBe(false);
+  });
+});
+
+const checklistPath = '/api/inspections/7/checklist';
+const answerPath = 'PUT /api/inspections/7/checklist/1';
+
+/** Items 1-3 of the standard checklist, none answered yet. */
+const checklist: ChecklistEntry[] = [
+  'Hand-washing sinks are stocked and free to use',
+  'Cold food is held at 41 °F or below',
+  'Hot food is held at 135 °F or above',
+].map((text, index) => ({id: index + 1, text, answer: null, ticketId: null}));
+
+/** The row of checklist item `index`. */
+function itemRow(index: number) {
+  return screen.findByRole('group', {name: checklist[index].text});
+}
+
+/** The answers the page sent for item 1. */
+function sentAnswers(fetch: ReturnType<typeof stubApi>) {
+  return fetch.mock.calls
+    .filter(
+      ([path, init]) =>
+        path === '/api/inspections/7/checklist/1' && init?.method === 'PUT',
+    )
+    .map(([, init]) => JSON.parse(init!.body as string));
+}
+
+describe('checklist (story 15)', () => {
+  it('shows every checklist item, none answered yet (AC 15.1)', async () => {
+    await openAsInspector({[checklistPath]: checklist});
+    for (const index of [0, 1, 2]) {
+      const row = await itemRow(index);
+      for (const name of ['Pass', 'Fail', 'N/A']) {
+        expect(within(row).getByRole('radio', {name})).not.toBeChecked();
+      }
+    }
+  });
+
+  it('saves Pass and shows it next to the item (AC 15.1)', async () => {
+    const fetch = await openAsInspector({
+      [checklistPath]: checklist,
+      [answerPath]: {...checklist[0], answer: 'pass'},
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Pass'}));
+    await waitFor(() =>
+      expect(within(row).getByRole('radio', {name: 'Pass'})).toBeEnabled(),
+    );
+    expect(within(row).getByRole('radio', {name: 'Pass'})).toBeChecked();
+    expect(sentAnswers(fetch)).toEqual([{answer: 'pass', ticketId: null}]);
+  });
+
+  it('locks an item while its answer saves (AC 15.1)', async () => {
+    await openAsInspector({
+      [checklistPath]: checklist,
+      [answerPath]: {...checklist[0], answer: 'na'},
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'N/A'}));
+    expect(within(row).getByRole('radio', {name: 'Pass'})).toBeDisabled();
+    await waitFor(() =>
+      expect(within(row).getByRole('radio', {name: 'Pass'})).toBeEnabled(),
+    );
+    expect(within(row).getByRole('radio', {name: 'N/A'})).toBeChecked();
+  });
+
+  it('shows "Record a finding for a failed item" and sends nothing when Fail has no finding (AC 15.2)', async () => {
+    const fetch = await openAsInspector({[checklistPath]: checklist});
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    expect(
+      within(row).getByText('Record a finding for a failed item'),
+    ).toBeInTheDocument();
+    expect(
+      within(row).getByText('Record the finding below, then choose it here.'),
+    ).toBeInTheDocument();
+    expect(sentAnswers(fetch)).toEqual([]);
+  });
+
+  it("saves a Fail once one of this inspection's findings is chosen (AC 15.2)", async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: checklist,
+      [answerPath]: {...checklist[0], answer: 'fail', ticketId: 12},
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    fireEvent.change(within(row).getByLabelText(/^Finding for this item/), {
+      target: {value: '12'},
+    });
+    await waitFor(() =>
+      expect(
+        within(row).queryByText('Record a finding for a failed item'),
+      ).not.toBeInTheDocument(),
+    );
+    expect(within(row).getByLabelText(/^Finding for this item/)).toHaveValue(
+      '12',
+    );
+    expect(within(row).getByRole('radio', {name: 'Fail'})).toBeChecked();
+    expect(sentAnswers(fetch)).toEqual([{answer: 'fail', ticketId: 12}]);
+  });
+
+  it('shows the chosen finding while a Fail saves (AC 15.2)', async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: checklist,
+    });
+    const row = await itemRow(0);
+    let respond!: (res: Response) => void;
+    fetch.mockImplementationOnce(
+      () => new Promise((resolve) => (respond = resolve)),
+    );
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    const select = within(row).getByLabelText(/^Finding for this item/);
+    fireEvent.change(select, {target: {value: '12'}});
+    expect(select).toHaveValue('12');
+    expect(
+      within(row).queryByText('Record a finding for a failed item'),
+    ).not.toBeInTheDocument();
+    respond(Response.json({...checklist[0], answer: 'fail', ticketId: 12}));
+    await waitFor(() => expect(select).toBeEnabled());
+    expect(select).toHaveValue('12');
+  });
+
+  it('locks the finding while a Fail saves (AC 15.2)', async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {
+        ...inspection,
+        tickets: [
+          ticket,
+          {...ticket, id: 13, description: 'No soap at hand sink'},
+        ],
+      },
+      [checklistPath]: checklist,
+    });
+    const row = await itemRow(0);
+    let respond!: (res: Response) => void;
+    fetch.mockImplementationOnce(
+      () => new Promise((resolve) => (respond = resolve)),
+    );
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    const select = within(row).getByLabelText(/^Finding for this item/);
+    fireEvent.change(select, {target: {value: '12'}});
+    expect(select).toBeDisabled();
+    await userEvent.selectOptions(select, '13');
+    expect(sentAnswers(fetch)).toEqual([{answer: 'fail', ticketId: 12}]);
+    respond(Response.json({...checklist[0], answer: 'fail', ticketId: 12}));
+    await waitFor(() => expect(select).toBeEnabled());
+    expect(sentAnswers(fetch)).toEqual([{answer: 'fail', ticketId: 12}]);
+  });
+
+  it('offers a finding just recorded on this page for a failed item (AC 15.2)', async () => {
+    await openAsInspector({
+      [checklistPath]: checklist,
+      '/api/inspections/7/tickets': Response.json(ticket, {status: 201}),
+    });
+    saveFinding();
+    await screen.findByText('T-0012');
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    expect(
+      within(row).getByRole('option', {
+        name: 'T-0012 Raw chicken stored above salad',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('changes a saved answer and shows the new one (AC 15.3)', async () => {
+    const fetch = await openAsInspector({
+      [checklistPath]: [
+        {...checklist[0], answer: 'pass'},
+        ...checklist.slice(1),
+      ],
+      [answerPath]: {...checklist[0], answer: 'na'},
+    });
+    const row = await itemRow(0);
+    expect(within(row).getByRole('radio', {name: 'Pass'})).toBeChecked();
+    fireEvent.click(within(row).getByRole('radio', {name: 'N/A'}));
+    await waitFor(() =>
+      expect(within(row).getByRole('radio', {name: 'N/A'})).toBeEnabled(),
+    );
+    expect(within(row).getByRole('radio', {name: 'N/A'})).toBeChecked();
+    expect(within(row).getByRole('radio', {name: 'Pass'})).not.toBeChecked();
+    expect(sentAnswers(fetch)).toEqual([{answer: 'na', ticketId: null}]);
+  });
+
+  it("shows the store's owner each item and its answer, with nothing to change (AC 15.5)", async () => {
+    const fetch = stubApi({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: [
+        {...checklist[0], answer: 'fail', ticketId: 12},
+        {...checklist[1], answer: 'pass'},
+        checklist[2],
+      ],
+    });
+    renderWithAuth(<AppRoutes />, {user: owner, route: '/inspections/7'});
+    const failed = await itemRow(0);
+    expect(within(failed).getByText('Fail')).toBeInTheDocument();
+    expect(within(failed).getByText('T-0012')).toBeInTheDocument();
+    expect(within(await itemRow(1)).getByText('Pass')).toBeInTheDocument();
+    expect(
+      within(await itemRow(2)).getByText('Not answered'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(fetch.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(
+      false,
+    );
+  });
+
+  it("shows the server's message when the checklist cannot be loaded", async () => {
+    await openAsInspector({
+      [checklistPath]: Response.json(
+        {error: 'Internal server error'},
+        {status: 500},
+      ),
+    });
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Internal server error',
+    );
+  });
+
+  it('keeps the saved answer and shows the message when a save is refused', async () => {
+    await openAsInspector({
+      [checklistPath]: [
+        {...checklist[0], answer: 'pass'},
+        ...checklist.slice(1),
+      ],
+      [answerPath]: Response.json(
+        {error: 'Checklist item not found'},
+        {status: 404},
+      ),
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'N/A'}));
+    expect(await within(row).findByRole('alert')).toHaveTextContent(
+      'Checklist item not found',
+    );
+    expect(within(row).getByRole('radio', {name: 'Pass'})).toBeChecked();
+    expect(within(row).getByRole('radio', {name: 'N/A'})).not.toBeChecked();
   });
 });

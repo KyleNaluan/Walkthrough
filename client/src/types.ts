@@ -50,6 +50,19 @@ export interface InspectionDetail extends Inspection {
   tickets: Ticket[];
 }
 
+export type ChecklistAnswer = 'pass' | 'fail' | 'na';
+
+/**
+ * A checklist item with an inspection's answer, or null if not answered yet;
+ * `ticketId` is the finding a failed item is for (story 15).
+ */
+export interface ChecklistEntry {
+  id: number;
+  text: string;
+  answer: ChecklistAnswer | null;
+  ticketId: number | null;
+}
+
 /** A row of a store's inspection history (story 14). */
 export interface InspectionSummary {
   id: number;

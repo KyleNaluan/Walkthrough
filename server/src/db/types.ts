@@ -10,6 +10,8 @@ export type TicketStatus =
 export type ReviewDecision =
   'approved' | 'changes_requested' | 'reinspection_scheduled';
 export type ReinspectionOutcome = 'pending' | 'passed' | 'failed';
+// From database/004_checklist.sql.
+export type ChecklistAnswer = 'pass' | 'fail' | 'na';
 
 // Rows as Supabase returns them.
 export interface AppUserRow {
@@ -145,4 +147,15 @@ export interface TicketDetail {
   store: {id: number; name: string};
   fixes: FixSubmission[];
   reinspections: Reinspection[];
+}
+
+/**
+ * A checklist item with an inspection's answer, or null if not answered yet;
+ * `ticketId` is the finding a failed item is for (story 15).
+ */
+export interface ChecklistEntry {
+  id: number;
+  text: string;
+  answer: ChecklistAnswer | null;
+  ticketId: number | null;
 }
