@@ -183,6 +183,7 @@ describe('TicketsPage (story 8)', () => {
       inspectionId: 1,
       fixes: [],
       reinspections: [],
+      extensionRequests: [],
     };
     stubApi({
       '/api/tickets': tickets,

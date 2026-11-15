@@ -39,6 +39,7 @@ function lookup<K, V>(map: Map<K, V>, key: K): V {
 /** Deletes every row, children first, then the seed accounts and photos. */
 async function clear(db: SupabaseClient): Promise<void> {
   const tables = [
+    ['extension_request', 'extension_request_id'],
     ['checklist_answer', 'inspection_id'],
     ['reinspection', 'reinspection_id'],
     ['fix_submission', 'fix_submission_id'],

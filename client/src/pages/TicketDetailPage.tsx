@@ -9,6 +9,10 @@ import {useParams} from 'react-router';
 import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {Photo} from '../components/Photo';
+import {
+  DeadlineExtension,
+  ExtensionBadge,
+} from '../components/tickets/DeadlineExtension';
 import {ReviewForm} from '../components/tickets/ReviewForm';
 import {SubmitFixForm} from '../components/tickets/SubmitFixForm';
 import {TicketTimeline} from '../components/tickets/TicketTimeline';
@@ -21,6 +25,7 @@ import {BackLink} from '../components/ui/BackLink';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
 import {PageHeader} from '../components/ui/PageHeader';
 import {Section} from '../components/ui/Section';
+import {pendingExtension} from '../lib/extensions';
 import {formatDate, formatDateTime} from '../lib/format';
 import {useApi} from '../lib/useApi';
 import {recordNumber} from '../status';
@@ -89,6 +94,7 @@ function Ticket({
         <StatusBadge status={ticket.status} />
         <SeverityBadge severity={ticket.severity} />
         {ticket.overdue && <OverdueBadge />}
+        {pendingExtension(ticket) && <ExtensionBadge />}
       </Group>
 
       {/* AC 11.3: the owner sees what still needs to be done. */}
@@ -158,15 +164,17 @@ function Ticket({
           <ReviewForm ticketId={ticket.id} onReviewed={onChange} />
         </Section>
       )}
+
+      <DeadlineExtension ticket={ticket} onChange={onChange} />
     </>
   );
 }
 
 /**
  * One ticket: the finding, a timeline of its history (story 13), and the
- * next step for whoever is looking. Owners submit fixes (story 9); inspectors
- * approve (story 10) or request changes (story 11). The server checks
- * access and status for each step.
+ * next step for whoever is looking. Owners submit fixes (story 9) and ask for
+ * a later deadline (story 17); inspectors approve (story 10) or request
+ * changes (story 11). The server checks access and status for each step.
  */
 export function TicketDetailPage() {
   const {ticketId} = useParams();
