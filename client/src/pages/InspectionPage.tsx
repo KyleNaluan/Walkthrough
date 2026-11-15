@@ -1,7 +1,7 @@
 import {Anchor, Box, Group, Paper, Text} from '@mantine/core';
-import {IconArrowLeft, IconPhoto} from '@tabler/icons-react';
+import {IconPhoto} from '@tabler/icons-react';
 import {useState} from 'react';
-import {Link, useParams} from 'react-router';
+import {useParams} from 'react-router';
 import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {Checklist} from '../components/Checklist';
@@ -15,6 +15,7 @@ import {
   SeverityBadge,
   StatusBadge,
 } from '../components/ui/Badges';
+import {BackLink} from '../components/ui/BackLink';
 import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
 import {PageHeader} from '../components/ui/PageHeader';
@@ -121,18 +122,7 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
       )}
       {detail && (
         <>
-          <Anchor
-            component={Link}
-            to={`/stores/${detail.storeId}`}
-            fz="sm"
-            mb="sm"
-            display="block"
-          >
-            <Group gap={4} component="span">
-              <IconArrowLeft size={16} />
-              Back to store
-            </Group>
-          </Anchor>
+          <BackLink to={`/stores/${detail.storeId}`} label="Back to store" />
           <PageHeader
             eyebrow={recordNumber('INS', detail.id)}
             title={detail.store.name}

@@ -1,12 +1,11 @@
-import {Alert, Anchor, Box, Group, SimpleGrid, Text} from '@mantine/core';
+import {Alert, Box, Group, SimpleGrid, Text} from '@mantine/core';
 import {
   IconArrowBackUp,
-  IconArrowLeft,
   IconCircleCheck,
   IconHourglass,
 } from '@tabler/icons-react';
 import {useState} from 'react';
-import {Link, useParams} from 'react-router';
+import {useParams} from 'react-router';
 import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {Photo} from '../components/Photo';
@@ -18,6 +17,7 @@ import {
   SeverityBadge,
   StatusBadge,
 } from '../components/ui/Badges';
+import {BackLink} from '../components/ui/BackLink';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
 import {PageHeader} from '../components/ui/PageHeader';
 import {Section} from '../components/ui/Section';
@@ -182,12 +182,7 @@ export function TicketDetailPage() {
 
   return (
     <>
-      <Anchor component={Link} to="/tickets" fz="sm" mb="sm" display="block">
-        <Group gap={4} component="span">
-          <IconArrowLeft size={16} />
-          Back to tickets
-        </Group>
-      </Anchor>
+      <BackLink to="/tickets" label="Back to tickets" />
       {!ticket && loaded.status === 'loading' && <Loading />}
       {!ticket && loaded.status === 'error' && (
         <>
