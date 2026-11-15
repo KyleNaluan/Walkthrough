@@ -77,6 +77,7 @@ export interface InspectionSummary {
   startedAt: string;
   inspector: {firstName: string; lastName: string};
   findingCount: number;
+  completedAt: string | null;
 }
 
 export interface Ticket {

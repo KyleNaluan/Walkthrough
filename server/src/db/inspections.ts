@@ -44,6 +44,7 @@ interface InspectionSummaryRow {
   started_at: string;
   inspector: {first_name: string; last_name: string};
   ticket: {count: number}[];
+  completed_at: string | null;
 }
 
 /** A store's inspections, newest first, each with its number of findings. */
@@ -53,7 +54,7 @@ export async function listInspectionsForStore(
   const {data, error} = await getSupabaseAdmin()
     .from('inspection')
     .select(
-      'inspection_id, started_at, inspector:app_user(first_name, last_name), ticket(count)',
+      'inspection_id, started_at, inspector:app_user(first_name, last_name), ticket(count), completed_at',
     )
     .eq('store_id', storeId)
     .order('started_at', {ascending: false})
@@ -68,5 +69,6 @@ export async function listInspectionsForStore(
       lastName: row.inspector.last_name,
     },
     findingCount: row.ticket[0].count,
+    completedAt: row.completed_at,
   }));
 }
