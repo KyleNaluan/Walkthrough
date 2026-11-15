@@ -5,6 +5,7 @@ import {Link, useParams} from 'react-router';
 import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {Checklist} from '../components/Checklist';
+import {CompleteInspection} from '../components/CompleteInspection';
 import {CompletionSummary} from '../components/CompletionSummary';
 import {FindingForm} from '../components/FindingForm';
 import {Photo} from '../components/Photo';
@@ -99,7 +100,10 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
   );
   // Findings recorded on this page, after the ones the inspection came with.
   const [added, setAdded] = useState<Ticket[]>([]);
-  const detail = inspection.status === 'done' ? inspection.data : null;
+  // The inspection as completed on this page, with every finding (AC 16.1).
+  const [completed, setCompleted] = useState<InspectionDetail | null>(null);
+  const detail =
+    inspection.status === 'done' ? (completed ?? inspection.data) : null;
   const tickets = detail ? [...detail.tickets, ...added] : [];
   // Once completed, nobody can answer or record a finding (AC 16.3).
   const canChange = user?.role === 'inspector' && !detail?.completedAt;
@@ -159,7 +163,9 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
               inspectionId={detail.id}
             />
           )}
+          {/* Reloaded once completed, so it shows the answers saved since. */}
           <Checklist
+            key={detail.completedAt ?? 'open'}
             inspectionId={detail.id}
             tickets={tickets}
             canAnswer={canChange}
@@ -180,6 +186,15 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
                 onSaved={(ticket) => setAdded((saved) => [...saved, ticket])}
               />
             </Section>
+          )}
+          {canChange && (
+            <CompleteInspection
+              inspectionId={detail.id}
+              onCompleted={(done) => {
+                setCompleted(done);
+                setAdded([]);
+              }}
+            />
           )}
         </>
       )}
