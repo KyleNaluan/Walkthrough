@@ -963,6 +963,32 @@ describe('complete an inspection (story 16)', () => {
     expect(screen.queryByRole('heading', {name: 'Summary'})).toBeNull();
   });
 
+  it('shows "Choose a finding for each failed item first" and sends nothing while a Fail waits for its finding', async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: answered,
+      [answerPath]: {...answered[0], answer: 'fail', ticketId: 12},
+      [completePath]: completedInspection,
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Complete inspection'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Choose a finding for each failed item first',
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(sentCompletes(fetch)).toHaveLength(0);
+    fireEvent.change(within(row).getByLabelText(/^Finding for this item/), {
+      target: {value: '12'},
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+    );
+    await completeAndConfirm();
+    await screen.findByRole('heading', {name: 'Summary'});
+    expect(sentCompletes(fetch)).toHaveLength(1);
+  });
+
   it('locks the checklist and hides the finding form once the inspection is completed (AC 16.3)', async () => {
     const fetch = await openAsInspector({
       '/api/inspections/7': {...inspection, tickets: [ticket]},

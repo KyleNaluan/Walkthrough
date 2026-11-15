@@ -7,7 +7,7 @@ import {
   Text,
 } from '@mantine/core';
 import {IconAlertCircle} from '@tabler/icons-react';
-import {useState} from 'react';
+import {useCallback, useEffect, useState} from 'react';
 import {ApiError, apiPut} from '../api';
 import {useApi} from '../lib/useApi';
 import {CHECKLIST_ANSWER, recordNumber} from '../status';
@@ -50,10 +50,12 @@ function ChecklistRow({
   entry,
   inspectionId,
   tickets,
+  onUnsavedFail,
 }: {
   entry: ChecklistEntry;
   inspectionId: number;
   tickets: Ticket[];
+  onUnsavedFail: (itemId: number, unsaved: boolean) => void;
 }) {
   const [saved, setSaved] = useState(entry);
   // What the control shows: the saved answer, or a Fail waiting for its
@@ -66,6 +68,11 @@ function ChecklistRow({
   } | null>(null);
   const busy = sending !== null;
   const [error, setError] = useState<string | null>(null);
+  const unsavedFail = choice === 'fail' && saved.answer !== 'fail';
+  useEffect(() => {
+    onUnsavedFail(entry.id, unsavedFail);
+    return () => onUnsavedFail(entry.id, false);
+  }, [entry.id, unsavedFail, onUnsavedFail]);
 
   async function save(answer: ChecklistAnswer, ticketId: number | null) {
     setSending({answer, ticketId});
@@ -149,20 +156,36 @@ function ChecklistRow({
 /**
  * An inspection's standard checklist (story 15). Inspectors answer each item
  * Pass, Fail or N/A, and a Fail names one of `tickets`, this inspection's
- * findings. Store owners see the answers only.
+ * findings. Store owners see the answers only. `onUnsavedFail` hears whether
+ * any Fail still waits for its finding.
  */
 export function Checklist({
   inspectionId,
   tickets,
   canAnswer,
+  onUnsavedFail,
 }: {
   inspectionId: number;
   tickets: Ticket[];
   canAnswer: boolean;
+  onUnsavedFail: (unsaved: boolean) => void;
 }) {
   const checklist = useApi<ChecklistEntry[]>(
     `/api/inspections/${inspectionId}/checklist`,
   );
+  // The items with a Fail chosen and not saved yet, waiting for its finding.
+  const [unsaved, setUnsaved] = useState<ReadonlySet<number>>(new Set());
+  const markUnsaved = useCallback((itemId: number, waiting: boolean) => {
+    setUnsaved((ids) => {
+      if (ids.has(itemId) === waiting) return ids;
+      const next = new Set(ids);
+      if (waiting) next.add(itemId);
+      else next.delete(itemId);
+      return next;
+    });
+  }, []);
+  const anyUnsaved = unsaved.size > 0;
+  useEffect(() => onUnsavedFail(anyUnsaved), [anyUnsaved, onUnsavedFail]);
   return (
     <Section title="Checklist">
       {checklist.status === 'loading' && <Loading />}
@@ -177,6 +200,7 @@ export function Checklist({
               entry={entry}
               inspectionId={inspectionId}
               tickets={tickets}
+              onUnsavedFail={markUnsaved}
             />
           ) : (
             <ChecklistResult key={entry.id} entry={entry} />

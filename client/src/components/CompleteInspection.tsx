@@ -5,20 +5,29 @@ import {ApiError, apiPost} from '../api';
 import type {InspectionDetail} from '../types';
 import {Section} from './ui/Section';
 
+const FINDING_FIRST = 'Choose a finding for each failed item first';
+
 /**
  * Completes an inspection once the inspector confirms (story 16). The server
  * refuses it while an item is unanswered, and its message is shown (AC 16.2).
+ * A Fail still waiting for its finding (`unsavedFail`) is not saved, so it
+ * stops the inspection being completed.
  */
 export function CompleteInspection({
   inspectionId,
+  unsavedFail,
   onCompleted,
 }: {
   inspectionId: number;
+  unsavedFail: boolean;
   onCompleted: (inspection: InspectionDetail) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Asked to complete while a Fail waited; cleared once none waits.
+  const [findingFirst, setFindingFirst] = useState(false);
+  const message = findingFirst && unsavedFail ? FINDING_FIRST : error;
 
   async function complete() {
     setConfirming(false);
@@ -46,13 +55,16 @@ export function CompleteInspection({
         fullWidth
         leftSection={<IconCircleCheck size={18} />}
         loading={busy}
-        onClick={() => setConfirming(true)}
+        onClick={() => {
+          setFindingFirst(unsavedFail);
+          setConfirming(!unsavedFail);
+        }}
       >
         Complete inspection
       </Button>
-      {error && (
+      {message && (
         <Alert color="red" variant="light" icon={<IconAlertCircle size={18} />}>
-          {error}
+          {message}
         </Alert>
       )}
       <Modal

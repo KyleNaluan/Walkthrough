@@ -102,6 +102,8 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
   const [added, setAdded] = useState<Ticket[]>([]);
   // The inspection as completed on this page, with every finding (AC 16.1).
   const [completed, setCompleted] = useState<InspectionDetail | null>(null);
+  // Whether a checklist item has a Fail still waiting for its finding.
+  const [unsavedFail, setUnsavedFail] = useState(false);
   const detail =
     inspection.status === 'done' ? (completed ?? inspection.data) : null;
   const tickets = detail ? [...detail.tickets, ...added] : [];
@@ -169,6 +171,7 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
             inspectionId={detail.id}
             tickets={tickets}
             canAnswer={canChange}
+            onUnsavedFail={setUnsavedFail}
           />
           <Section title="Findings">
             {tickets.length === 0 && (
@@ -190,6 +193,7 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
           {canChange && (
             <CompleteInspection
               inspectionId={detail.id}
+              unsavedFail={unsavedFail}
               onCompleted={(done) => {
                 setCompleted(done);
                 setAdded([]);
