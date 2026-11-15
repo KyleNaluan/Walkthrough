@@ -320,7 +320,10 @@ function DecideExtensionForm({
   );
 }
 
-/** The inspector's side: the pending request to decide, if any (story 18). */
+/**
+ * The inspector's side: the pending request to decide, if any (story 18).
+ * A resolved ticket never has one, so it never shows the panel.
+ */
 function InspectorExtension({
   ticket,
   onChange,

@@ -13,7 +13,8 @@ export type ReinspectionOutcome = 'pending' | 'passed' | 'failed';
 // From database/004_checklist.sql.
 export type ChecklistAnswer = 'pass' | 'fail' | 'na';
 // From database/007_extension_requests.sql.
-export type ExtensionStatus = 'pending' | 'approved' | 'denied';
+// closed: the ticket was resolved before an inspector decided.
+export type ExtensionStatus = 'pending' | 'approved' | 'denied' | 'closed';
 
 // Rows as Supabase returns them.
 export interface AppUserRow {
@@ -145,7 +146,8 @@ export interface ExtensionDecision {
 
 /**
  * An owner's request for a later deadline (story 17). `previousDeadline` is
- * the deadline when they asked; `decision` stays null while it is pending.
+ * the deadline when they asked; `decision` stays null while it is pending,
+ * and for a request closed because the ticket was resolved.
  */
 export interface ExtensionRequest {
   id: number;

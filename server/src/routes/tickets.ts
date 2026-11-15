@@ -326,6 +326,11 @@ ticketsRouter.post(
   async (req, res) => {
     const {ticketId, requestId} = parseParams(decisionParams, req);
     const ticket = await loadTicket(req.user!, ticketId);
+    // Resolving a ticket closes its request (007), and a resolved ticket's
+    // deadline no longer matters.
+    if (ticket.status === 'resolved') {
+      throw new HttpError(409, ALREADY_RESOLVED);
+    }
     const {decision, comment} = parseBody(decisionBody, req);
     const pending = ticket.extensionRequests.find(
       (r) => r.status === 'pending',

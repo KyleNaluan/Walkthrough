@@ -150,6 +150,11 @@ function ExtensionAsked({request}: {request: ExtensionRequest}) {
           Waiting for a decision
         </Text>
       )}
+      {request.status === 'closed' && (
+        <Text fz="sm" c="dimmed">
+          Closed without a decision when the ticket was resolved
+        </Text>
+      )}
     </>
   );
 }

@@ -142,6 +142,10 @@ beforeEach(() => {
       ]),
       // Another owner's store, with a pending request.
       ticket(9, 3, 'open', DEADLINE, [fakeRequest(43, 'pending')]),
+      // Resolved while its request was pending, which closed it.
+      ticket(10, 1, 'resolved', DEADLINE, [fakeRequest(44, 'closed')]),
+      // Resolved with a request still marked pending.
+      ticket(11, 1, 'resolved', DEADLINE, [fakeRequest(45, 'pending')]),
     ].map((t) => [t.id, t]),
   );
   nextRequestId = 100;
@@ -184,6 +188,7 @@ beforeEach(() => {
       );
       const r = t?.requests.find((x) => x.id === requestId);
       if (!t || !r) throw p0001(NOTHING_WAITING);
+      if (t.status === 'resolved') throw p0001(RESOLVED);
       if (r.status !== 'pending') throw p0001(DECIDED);
       if (decision === 'denied' && !comment) throw p0001(DENY_COMMENT);
       r.status = decision;
@@ -557,6 +562,33 @@ describe('POST /api/tickets/:ticketId/extension-requests/:requestId/decision (st
     expect(res.body).toEqual({error: NOTHING_WAITING});
     expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
     expect(db.get(ticketId)).toEqual(before);
+  });
+
+  it.each([
+    [10, 'its request was closed', 44],
+    [11, 'a request is still marked pending', 45],
+  ])(
+    'refuses to decide on Resolved ticket %i, where %s, and changes nothing (AC 18.4)',
+    async (ticketId, _, requestId) => {
+      const before = structuredClone(db.get(ticketId));
+      for (const body of [
+        {decision: 'approved'},
+        {decision: 'denied', comment: 'No'},
+      ]) {
+        const res = await decide(ticketId, requestId, 'inspector', body);
+        expect(res.status).toBe(409);
+        expect(res.body).toEqual({error: RESOLVED});
+      }
+      expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
+      expect(db.get(ticketId)).toEqual(before);
+    },
+  );
+
+  it('passes on the refusal if the ticket was resolved in the meantime (AC 18.4)', async () => {
+    vi.mocked(ticketsDb.decideExtension).mockRejectedValueOnce(p0001(RESOLVED));
+    const res = await decide(4, 40, 'inspector', {decision: 'approved'});
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({error: RESOLVED});
   });
 
   it('refuses to decide a request other than the one waiting', async () => {
