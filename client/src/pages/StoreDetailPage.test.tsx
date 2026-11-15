@@ -146,6 +146,11 @@ describe('StoreDetailPage', () => {
   it('shows "Store not found" when the store is gone and stays on the store page (AC 5.3)', async () => {
     const fetch = stubApi({
       '/api/stores/1': stores[0],
+      '/api/stores/1/summary': {
+        openTickets: 0,
+        overdueTickets: 0,
+        lastInspection: null,
+      },
       '/api/stores/1/inspections': [],
       'POST /api/stores/1/inspections': Response.json(
         {error: 'Store not found'},

@@ -5,6 +5,7 @@ import {useNavigate, useParams} from 'react-router';
 import {ApiError, apiPost} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {InspectionHistory} from '../components/InspectionHistory';
+import {StoreSummaryCard} from '../components/StoreSummaryCard';
 import {BackLink} from '../components/ui/BackLink';
 import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
@@ -96,6 +97,7 @@ export function StoreDetailPage() {
             <Field label="Name" value={store.data.name} />
             <Field label="Address" value={store.data.address} />
           </Section>
+          <StoreSummaryCard storeId={store.data.id} />
           <InspectionHistory storeId={store.data.id} />
         </>
       )}
