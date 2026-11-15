@@ -4,6 +4,7 @@ import {apiGet} from '../../api';
 import {formatDate, formatDateTime} from '../../lib/format';
 import {recordNumber} from '../../status';
 import type {
+  ExtensionRequest,
   FixReview,
   FixSubmission,
   Reinspection,
@@ -128,10 +129,47 @@ function reinspectionEntry(reinspection: Reinspection, number: number): Entry {
   };
 }
 
+/** What the owner asked for and why (story 17). */
+function ExtensionAsked({request}: {request: ExtensionRequest}) {
+  return (
+    <>
+      <Text fz="sm">
+        From{' '}
+        <Text span ff="monospace" fz="sm">
+          {formatDate(request.previousDeadline)}
+        </Text>{' '}
+        to{' '}
+        <Text span ff="monospace" fz="sm" fw={600}>
+          {formatDate(request.requestedDeadline)}
+        </Text>{' '}
+        · by {request.requesterName}
+      </Text>
+      <Text>{request.reason}</Text>
+      {request.status === 'pending' && (
+        <Text fz="sm" c="dimmed">
+          Waiting for a decision
+        </Text>
+      )}
+    </>
+  );
+}
+
+function extensionEntries(requests: ExtensionRequest[]): Entry[] {
+  return requests.map((request, index) => ({
+    key: `extension-${request.id}`,
+    at: microseconds(request.requestedAt),
+    label: `Extension request ${index + 1}`,
+    title: 'Extension requested',
+    date: formatDateTime(request.requestedAt),
+    color: 'yellow',
+    body: <ExtensionAsked request={request} />,
+  }));
+}
+
 /**
- * The finding, each fix round with its review, and each re-inspection,
- * oldest first (AC 13.1). A review always comes before the next fix or
- * re-inspection result, so it stays with its fix.
+ * The finding, each fix round with its review, each re-inspection and each
+ * extension request, oldest first (AC 13.1, 17.1). A review always comes
+ * before the next fix or re-inspection result, so it stays with its fix.
  */
 function entries(ticket: TicketDetail): Entry[] {
   return [
@@ -153,6 +191,7 @@ function entries(ticket: TicketDetail): Entry[] {
     ...ticket.reinspections.map((reinspection, index) =>
       reinspectionEntry(reinspection, index + 1),
     ),
+    ...extensionEntries(ticket.extensionRequests),
   ].sort((a, b) => a.at - b.at);
 }
 

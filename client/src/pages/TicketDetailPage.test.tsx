@@ -50,6 +50,7 @@ function ticket(
     store: {id: 1, name: 'Main St Diner'},
     fixes,
     reinspections,
+    extensionRequests: [],
   };
 }
 
