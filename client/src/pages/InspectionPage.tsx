@@ -24,11 +24,10 @@ import {useApi} from '../lib/useApi';
 import {recordNumber} from '../status';
 import type {InspectionDetail, Ticket} from '../types';
 
-// Chicago, like the server's TIME_ZONE, e.g. "Oct 14, 2026, 9:05 AM".
+// The viewer's own time zone, e.g. "Oct 14, 2026, 9:05 AM".
 const startedFormat = new Intl.DateTimeFormat('en-US', {
   dateStyle: 'medium',
   timeStyle: 'short',
-  timeZone: 'America/Chicago',
 });
 
 // A deadline is a date with no time, e.g. "Jan 15, 2099"; UTC keeps the day.
