@@ -90,8 +90,9 @@ The schema lives in `database/`, as numbered scripts that each run **once** in t
 - `002_status_functions.sql`: the `submit_fix` and `review_fix` functions that change a ticket's status. Run it once, after `001`.
 - `003_reinspection_result.sql`: the `record_reinspection` function that records a re-inspection as passed or failed. Run it once, after `002`.
 - `004_checklist.sql`: the standard checklist items and each inspection's answers. Run it once, after `003`.
+- `006_inspection_completed.sql`: the time each inspection is completed. Run it once, after `004`.
 
-A later change to the database gets its own new script (`003_...`). Never edit a script that has already run.
+A later change to the database gets its own new script (`007_...`). Never edit a script that has already run.
 
 To load the test data, put `SEED_PASSWORD` in `server/.env`, then run:
 

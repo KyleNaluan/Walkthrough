@@ -1,7 +1,8 @@
 import {getSupabaseAdmin} from '../lib/supabase.js';
 import type {Inspection, InspectionRow, InspectionSummary} from './types.js';
 
-const inspectionColumns = 'inspection_id, started_at, store_id, inspector_id';
+const inspectionColumns =
+  'inspection_id, started_at, store_id, inspector_id, completed_at';
 
 function toInspection(row: InspectionRow): Inspection {
   return {
@@ -9,6 +10,7 @@ function toInspection(row: InspectionRow): Inspection {
     startedAt: row.started_at,
     storeId: row.store_id,
     inspectorId: row.inspector_id,
+    completedAt: row.completed_at,
   };
 }
 

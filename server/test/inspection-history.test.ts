@@ -191,6 +191,7 @@ describe('GET /api/inspections/:inspectionId (story 14)', () => {
       startedAt: '2026-09-30T15:00:00.000Z',
       storeId: 1,
       inspectorId: users.inspector.id,
+      completedAt: null,
     });
     vi.mocked(ticketsDb.listTicketsForInspection).mockResolvedValue([
       finding,

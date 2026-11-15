@@ -34,6 +34,7 @@ export interface InspectionRow {
   started_at: string;
   store_id: number;
   inspector_id: string;
+  completed_at: string | null;
 }
 
 export interface TicketRow {
@@ -67,6 +68,7 @@ export interface Inspection {
   startedAt: string;
   storeId: number;
   inspectorId: string;
+  completedAt: string | null;
 }
 
 /** A row of a store's inspection history (story 14). */

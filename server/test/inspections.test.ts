@@ -29,6 +29,7 @@ const inspection = {
   startedAt,
   storeId: 1,
   inspectorId: users.inspector.id,
+  completedAt: null,
 };
 
 const recordedAt = '2026-10-15T15:30:00.000Z';
@@ -104,7 +105,13 @@ beforeEach(() => {
     id === inspection.id ? inspection.storeId : null,
   );
   vi.mocked(inspectionsDb.createInspection).mockImplementation(
-    async (storeId, inspectorId) => ({id: 7, startedAt, storeId, inspectorId}),
+    async (storeId, inspectorId) => ({
+      id: 7,
+      startedAt,
+      storeId,
+      inspectorId,
+      completedAt: null,
+    }),
   );
   vi.mocked(inspectionsDb.getInspection).mockImplementation(async (id) =>
     id === inspection.id ? inspection : null,
@@ -136,6 +143,7 @@ describe('POST /api/stores/:storeId/inspections', () => {
       startedAt,
       storeId: 3,
       inspectorId: users.inspector.id,
+      completedAt: null,
     });
     expect(inspectionsDb.createInspection).toHaveBeenCalledTimes(1);
     expect(inspectionsDb.createInspection).toHaveBeenCalledWith(
