@@ -400,6 +400,19 @@ describe('POST /api/inspections/:inspectionId/tickets', () => {
     },
   );
 
+  it('refuses a finding on a completed inspection and stores no photo or ticket (AC 16.3)', async () => {
+    vi.mocked(inspectionsDb.getInspection).mockResolvedValue({
+      ...inspection,
+      completedAt: '2026-10-14T15:00:00.000Z',
+    });
+    const res = await postFinding();
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: "This inspection is completed and can't be changed",
+    });
+    expectNothingSaved();
+  });
+
   it('refuses a photo over 4 MB with "Photo is too large" and stores nothing (AC 6.9)', async () => {
     const res = await postFinding({
       photo: {

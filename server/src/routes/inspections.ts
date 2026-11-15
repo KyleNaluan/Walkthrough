@@ -49,6 +49,17 @@ const answerBody = z.object({
 const FINDING_REQUIRED = 'Record a finding for a failed item';
 const ALREADY_COMPLETED = 'This inspection is already completed';
 
+/** Throws 409 if the inspection is completed, so it can't change (AC 16.3). */
+async function assertInspectionOpen(inspectionId: number): Promise<void> {
+  const inspection = (await inspections.getInspection(inspectionId))!;
+  if (inspection.completedAt) {
+    throw new HttpError(
+      409,
+      "This inspection is completed and can't be changed",
+    );
+  }
+}
+
 /**
  * An inspection with its store, inspector and findings, and once completed
  * its summary (AC 16.1).
@@ -103,6 +114,7 @@ inspectionsRouter.post(
   async (req, res) => {
     const {inspectionId} = parseParams(inspectionParams, req);
     await assertInspectionAccess(req.user!, inspectionId);
+    await assertInspectionOpen(inspectionId);
     const finding = parseBody(findingBody, req);
     const photo = await uploadPhoto('tickets', await validatePhoto(req.file));
     try {
@@ -149,6 +161,7 @@ inspectionsRouter.put(
   async (req, res) => {
     const {inspectionId, itemId} = parseParams(checklistParams, req);
     await assertInspectionAccess(req.user!, inspectionId);
+    await assertInspectionOpen(inspectionId);
     const {answer, ticketId} = parseBody(answerBody, req);
     const item = (await checklist.listChecklist(inspectionId)).find(
       (entry) => entry.id === itemId,

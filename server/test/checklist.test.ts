@@ -2,15 +2,17 @@ import request from 'supertest';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {app} from '../src/app.js';
 import * as checklistDb from '../src/db/checklist.js';
+import * as inspectionsDb from '../src/db/inspections.js';
 import * as storesDb from '../src/db/stores.js';
 import * as ticketsDb from '../src/db/tickets.js';
 import type {ChecklistAnswer, ChecklistEntry, Ticket} from '../src/db/types.js';
 import {asUser} from './helpers/auth.js';
-import {stores, type UserKey} from './helpers/users.js';
+import {stores, users, type UserKey} from './helpers/users.js';
 
 vi.mock('../src/db/stores.js');
 vi.mock('../src/db/tickets.js');
 vi.mock('../src/db/checklist.js');
+vi.mock('../src/db/inspections.js');
 
 const items = [
   {id: 1, text: 'Hand-washing sinks are stocked and free to use'},
@@ -32,9 +34,12 @@ const otherFinding: Ticket = {...finding, id: 13, inspectionId: 8};
 
 /** Saved answers by inspection and item, as saveAnswer leaves them. */
 let saved: Map<string, {answer: ChecklistAnswer; ticketId: number | null}>;
+/** Inspection 7's completion time, or null while it is in progress. */
+let completedAt: string | null;
 
 beforeEach(() => {
   saved = new Map();
+  completedAt = null;
   vi.mocked(storesDb.getStore).mockImplementation(
     async (id) => stores.find((store) => store.id === id) ?? null,
   );
@@ -42,6 +47,13 @@ beforeEach(() => {
   vi.mocked(storesDb.storeIdForInspection).mockImplementation(async (id) =>
     id === 7 || id === 8 ? 1 : null,
   );
+  vi.mocked(inspectionsDb.getInspection).mockImplementation(async (id) => ({
+    id,
+    startedAt: '2026-10-14T14:05:00.000Z',
+    storeId: 1,
+    inspectorId: users.inspector.id,
+    completedAt: id === 7 ? completedAt : null,
+  }));
   vi.mocked(ticketsDb.listTicketsForInspection).mockImplementation(async (id) =>
     [finding, otherFinding].filter((t) => t.inspectionId === id),
   );
@@ -199,6 +211,37 @@ describe('PUT /api/inspections/:inspectionId/checklist/:itemId (story 15)', () =
     expect(res.body).toEqual({...items[0], answer: 'pass', ticketId: null});
     expect(checklistDb.saveAnswer).toHaveBeenLastCalledWith(7, 1, 'pass', null);
   });
+
+  it('refuses an answer change on a completed inspection and saves nothing (AC 16.3)', async () => {
+    saved.set('7:1', {answer: 'pass', ticketId: null});
+    completedAt = '2026-10-14T15:00:00.000Z';
+    const res = await putAnswer({answer: 'na'});
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: "This inspection is completed and can't be changed",
+    });
+    expectNothingSaved();
+    const after = await getChecklist();
+    expect(after.body[0]).toEqual({
+      ...items[0],
+      answer: 'pass',
+      ticketId: null,
+    });
+  });
+
+  it.each([{answer: 'fail', ticketId: 12}, {answer: 'maybe'}, {}])(
+    "refuses a completed inspection's answer whatever the body (AC 16.3)",
+    async (body) => {
+      completedAt = '2026-10-14T15:00:00.000Z';
+      const res = await putAnswer(body);
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual({
+        error: "This inspection is completed and can't be changed",
+      });
+      expect(checklistDb.listChecklist).not.toHaveBeenCalled();
+      expectNothingSaved();
+    },
+  );
 
   it.each(['ownerA', 'ownerB'] as const)(
     'refuses a checklist answer from %s with "Access denied" and saves nothing (AC 15.4)',
