@@ -1,5 +1,9 @@
 import {getSupabaseAdmin} from '../lib/supabase.js';
-import type {ChecklistAnswer, ChecklistEntry} from './types.js';
+import type {
+  ChecklistAnswer,
+  ChecklistEntry,
+  ChecklistSummary,
+} from './types.js';
 
 interface ChecklistItemRow {
   checklist_item_id: number;
@@ -49,4 +53,13 @@ export async function saveAnswer(
     {onConflict: 'inspection_id,checklist_item_id'},
   );
   if (error) throw error;
+}
+
+/** Counts an inspection's passed, failed and N/A answers. */
+export function summarize(entries: ChecklistEntry[]): ChecklistSummary {
+  const summary: ChecklistSummary = {pass: 0, fail: 0, na: 0};
+  for (const entry of entries) {
+    if (entry.answer) summary[entry.answer]++;
+  }
+  return summary;
 }

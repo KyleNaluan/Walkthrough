@@ -29,6 +29,7 @@ const inspection = {
   startedAt,
   storeId: 1,
   inspectorId: users.inspector.id,
+  completedAt: null,
 };
 
 const recordedAt = '2026-10-15T15:30:00.000Z';
@@ -104,7 +105,13 @@ beforeEach(() => {
     id === inspection.id ? inspection.storeId : null,
   );
   vi.mocked(inspectionsDb.createInspection).mockImplementation(
-    async (storeId, inspectorId) => ({id: 7, startedAt, storeId, inspectorId}),
+    async (storeId, inspectorId) => ({
+      id: 7,
+      startedAt,
+      storeId,
+      inspectorId,
+      completedAt: null,
+    }),
   );
   vi.mocked(inspectionsDb.getInspection).mockImplementation(async (id) =>
     id === inspection.id ? inspection : null,
@@ -136,6 +143,7 @@ describe('POST /api/stores/:storeId/inspections', () => {
       startedAt,
       storeId: 3,
       inspectorId: users.inspector.id,
+      completedAt: null,
     });
     expect(inspectionsDb.createInspection).toHaveBeenCalledTimes(1);
     expect(inspectionsDb.createInspection).toHaveBeenCalledWith(
@@ -211,6 +219,7 @@ describe('GET /api/inspections/:inspectionId', () => {
       store: stores[0],
       inspector: {firstName: 'Ina', lastName: 'Spector'},
       tickets: [],
+      summary: null,
     });
   });
 
@@ -224,6 +233,7 @@ describe('GET /api/inspections/:inspectionId', () => {
       store: stores[0],
       inspector: {firstName: 'Ina', lastName: 'Spector'},
       tickets: [],
+      summary: null,
     });
   });
 
@@ -389,6 +399,19 @@ describe('POST /api/inspections/:inspectionId/tickets', () => {
       expect(storesDb.storeIdForInspection).not.toHaveBeenCalled();
     },
   );
+
+  it('refuses a finding on a completed inspection and stores no photo or ticket (AC 16.3)', async () => {
+    vi.mocked(inspectionsDb.getInspection).mockResolvedValue({
+      ...inspection,
+      completedAt: '2026-10-14T15:00:00.000Z',
+    });
+    const res = await postFinding();
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: "This inspection is completed and can't be changed",
+    });
+    expectNothingSaved();
+  });
 
   it('refuses a photo over 4 MB with "Photo is too large" and stores nothing (AC 6.9)', async () => {
     const res = await postFinding({

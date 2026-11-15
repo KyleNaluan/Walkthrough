@@ -5,10 +5,16 @@ import {Link, useParams} from 'react-router';
 import {apiGet} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {Checklist} from '../components/Checklist';
+import {CompleteInspection} from '../components/CompleteInspection';
+import {CompletionSummary} from '../components/CompletionSummary';
 import {FindingForm} from '../components/FindingForm';
 import {Photo} from '../components/Photo';
 import {ReinspectionList} from '../components/tickets/ReinspectionList';
-import {SeverityBadge, StatusBadge} from '../components/ui/Badges';
+import {
+  InspectionStateBadge,
+  SeverityBadge,
+  StatusBadge,
+} from '../components/ui/Badges';
 import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
 import {PageHeader} from '../components/ui/PageHeader';
@@ -78,7 +84,8 @@ function FindingRow({ticket}: {ticket: Ticket}) {
 /**
  * One inspection: its store, inspector and start time (story 5), its
  * findings (story 6) with their photos (story 7), for inspectors the store's
- * re-inspections due (story 12), and its checklist (story 15).
+ * re-inspections due (story 12), its checklist (story 15), and once
+ * completed its summary (story 16).
  */
 export function InspectionPage() {
   const {inspectionId} = useParams();
@@ -93,8 +100,15 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
   );
   // Findings recorded on this page, after the ones the inspection came with.
   const [added, setAdded] = useState<Ticket[]>([]);
-  const tickets =
-    inspection.status === 'done' ? [...inspection.data.tickets, ...added] : [];
+  // The inspection as completed on this page, with every finding (AC 16.1).
+  const [completed, setCompleted] = useState<InspectionDetail | null>(null);
+  // Whether a checklist item has a Fail still waiting for its finding.
+  const [unsavedFail, setUnsavedFail] = useState(false);
+  const detail =
+    inspection.status === 'done' ? (completed ?? inspection.data) : null;
+  const tickets = detail ? [...detail.tickets, ...added] : [];
+  // Once completed, nobody can answer or record a finding (AC 16.3).
+  const canChange = user?.role === 'inspector' && !detail?.completedAt;
 
   return (
     <>
@@ -105,11 +119,11 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
           <LoadFailed message={inspection.error.message} />
         </>
       )}
-      {inspection.status === 'done' && (
+      {detail && (
         <>
           <Anchor
             component={Link}
-            to={`/stores/${inspection.data.storeId}`}
+            to={`/stores/${detail.storeId}`}
             fz="sm"
             mb="sm"
             display="block"
@@ -120,31 +134,44 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
             </Group>
           </Anchor>
           <PageHeader
-            eyebrow={recordNumber('INS', inspection.data.id)}
-            title={inspection.data.store.name}
+            eyebrow={recordNumber('INS', detail.id)}
+            title={detail.store.name}
+            actions={<InspectionStateBadge completedAt={detail.completedAt} />}
           />
           <Section title="Inspection details">
-            <Field label="Store" value={inspection.data.store.name} />
-            <Field label="Address" value={inspection.data.store.address} />
+            <Field label="Store" value={detail.store.name} />
+            <Field label="Address" value={detail.store.address} />
             <Field
               label="Inspector"
-              value={`${inspection.data.inspector.firstName} ${inspection.data.inspector.lastName}`}
+              value={`${detail.inspector.firstName} ${detail.inspector.lastName}`}
             />
             <Field
               label="Started"
-              value={startedFormat.format(new Date(inspection.data.startedAt))}
+              value={startedFormat.format(new Date(detail.startedAt))}
             />
+            {detail.completedAt && (
+              <Field
+                label="Completed"
+                value={startedFormat.format(new Date(detail.completedAt))}
+              />
+            )}
           </Section>
+          {detail.summary && (
+            <CompletionSummary summary={detail.summary} tickets={tickets} />
+          )}
           {user?.role === 'inspector' && (
             <ReinspectionList
-              storeId={inspection.data.storeId}
-              inspectionId={inspection.data.id}
+              storeId={detail.storeId}
+              inspectionId={detail.id}
             />
           )}
+          {/* Reloaded once completed, so it shows the answers saved since. */}
           <Checklist
-            inspectionId={inspection.data.id}
+            key={detail.completedAt ?? 'open'}
+            inspectionId={detail.id}
             tickets={tickets}
-            canAnswer={user?.role === 'inspector'}
+            canAnswer={canChange}
+            onUnsavedFail={setUnsavedFail}
           />
           <Section title="Findings">
             {tickets.length === 0 && (
@@ -155,13 +182,23 @@ function InspectionView({inspectionId}: {inspectionId?: string}) {
             ))}
           </Section>
           {/* The server refuses owners too (AC 6.8). */}
-          {user?.role === 'inspector' && (
+          {canChange && (
             <Section title="Record a finding">
               <FindingForm
-                inspectionId={inspection.data.id}
+                inspectionId={detail.id}
                 onSaved={(ticket) => setAdded((saved) => [...saved, ticket])}
               />
             </Section>
+          )}
+          {canChange && (
+            <CompleteInspection
+              inspectionId={detail.id}
+              unsavedFail={unsavedFail}
+              onCompleted={(done) => {
+                setCompleted(done);
+                setAdded([]);
+              }}
+            />
           )}
         </>
       )}

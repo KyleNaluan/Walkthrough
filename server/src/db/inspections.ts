@@ -1,7 +1,8 @@
 import {getSupabaseAdmin} from '../lib/supabase.js';
 import type {Inspection, InspectionRow, InspectionSummary} from './types.js';
 
-const inspectionColumns = 'inspection_id, started_at, store_id, inspector_id';
+const inspectionColumns =
+  'inspection_id, started_at, store_id, inspector_id, completed_at';
 
 function toInspection(row: InspectionRow): Inspection {
   return {
@@ -9,6 +10,7 @@ function toInspection(row: InspectionRow): Inspection {
     startedAt: row.started_at,
     storeId: row.store_id,
     inspectorId: row.inspector_id,
+    completedAt: row.completed_at,
   };
 }
 
@@ -37,11 +39,30 @@ export async function getInspection(id: number): Promise<Inspection | null> {
   return data && toInspection(data);
 }
 
+/**
+ * Sets an inspection's completion time to now. Null if it was already
+ * completed, so the first time is kept.
+ */
+export async function completeInspection(
+  id: number,
+): Promise<Inspection | null> {
+  const {data, error} = await getSupabaseAdmin()
+    .from('inspection')
+    .update({completed_at: new Date().toISOString()})
+    .eq('inspection_id', id)
+    .is('completed_at', null)
+    .select(inspectionColumns)
+    .maybeSingle<InspectionRow>();
+  if (error) throw error;
+  return data && toInspection(data);
+}
+
 interface InspectionSummaryRow {
   inspection_id: number;
   started_at: string;
   inspector: {first_name: string; last_name: string};
   ticket: {count: number}[];
+  completed_at: string | null;
 }
 
 /** A store's inspections, newest first, each with its number of findings. */
@@ -51,7 +72,7 @@ export async function listInspectionsForStore(
   const {data, error} = await getSupabaseAdmin()
     .from('inspection')
     .select(
-      'inspection_id, started_at, inspector:app_user(first_name, last_name), ticket(count)',
+      'inspection_id, started_at, inspector:app_user(first_name, last_name), ticket(count), completed_at',
     )
     .eq('store_id', storeId)
     .order('started_at', {ascending: false})
@@ -66,5 +87,6 @@ export async function listInspectionsForStore(
       lastName: row.inspector.last_name,
     },
     findingCount: row.ticket[0].count,
+    completedAt: row.completed_at,
   }));
 }

@@ -1,6 +1,11 @@
 import {Badge} from '@mantine/core';
 import {IconAlertTriangle, IconClockExclamation} from '@tabler/icons-react';
-import {CHECKLIST_ANSWER, SEVERITY, TICKET_STATUS} from '../../status';
+import {
+  CHECKLIST_ANSWER,
+  INSPECTION_STATE,
+  SEVERITY,
+  TICKET_STATUS,
+} from '../../status';
 import type {ChecklistAnswer, Severity, TicketStatus} from '../../types';
 
 export function StatusBadge({status}: {status: TicketStatus}) {
@@ -46,6 +51,20 @@ export function AnswerBadge({answer}: {answer: ChecklistAnswer | null}) {
     );
   }
   const {label, color} = CHECKLIST_ANSWER[answer];
+  return (
+    <Badge color={color} variant="light">
+      {label}
+    </Badge>
+  );
+}
+
+export function InspectionStateBadge({
+  completedAt,
+}: {
+  completedAt: string | null;
+}) {
+  const {label, color} =
+    INSPECTION_STATE[completedAt ? 'completed' : 'in_progress'];
   return (
     <Badge color={color} variant="light">
       {label}

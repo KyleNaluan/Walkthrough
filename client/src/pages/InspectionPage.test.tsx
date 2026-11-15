@@ -7,7 +7,7 @@ import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
 import {inspection, inspector, owner, stores, ticket} from '../test/users';
-import type {ChecklistEntry, TicketSummary} from '../types';
+import type {ChecklistEntry, InspectionDetail, TicketSummary} from '../types';
 
 // Photos go up unchanged unless a test shrinks them.
 vi.mock('../lib/resizeImage', () => ({
@@ -801,5 +801,270 @@ describe('checklist (story 15)', () => {
     );
     expect(within(row).getByRole('radio', {name: 'Pass'})).toBeChecked();
     expect(within(row).getByRole('radio', {name: 'N/A'})).not.toBeChecked();
+  });
+});
+
+const completePath = 'POST /api/inspections/7/complete';
+const completedAt = '2026-10-14T15:20:00.000Z';
+
+/** Items 1-3 answered: Pass, Fail with ticket 12, and Pass. */
+const answered: ChecklistEntry[] = [
+  {...checklist[0], answer: 'pass'},
+  {...checklist[1], answer: 'fail', ticketId: 12},
+  {...checklist[2], answer: 'pass'},
+];
+
+/** Inspection 7 completed with ticket 12, as the server sends it. */
+const completedInspection: InspectionDetail = {
+  ...inspection,
+  tickets: [ticket],
+  completedAt,
+  summary: {pass: 2, fail: 1, na: 0},
+};
+
+/** The page header, with the store name and the inspection's state. */
+function pageHeader() {
+  return screen.getByRole('heading', {name: 'Main St Diner', level: 1})
+    .parentElement!.parentElement!;
+}
+
+/** The box in the summary for `label`, with its count. */
+function summaryCount(label: string) {
+  const summary = screen.getByRole('heading', {name: 'Summary'}).parentElement!;
+  return within(summary).getByText(label).parentElement!;
+}
+
+/** The completes the page sent for inspection 7. */
+function sentCompletes(fetch: ReturnType<typeof stubApi>) {
+  return fetch.mock.calls.filter(
+    ([path, init]) =>
+      path === '/api/inspections/7/complete' && init?.method === 'POST',
+  );
+}
+
+/** Chooses Complete inspection and confirms it in the dialog. */
+async function completeAndConfirm() {
+  fireEvent.click(screen.getByRole('button', {name: 'Complete inspection'}));
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Complete this inspection?',
+  });
+  fireEvent.click(within(dialog).getByRole('button', {name: 'Complete'}));
+}
+
+/** Opens completed inspection 7 as `user`. */
+async function openCompleted(user: typeof inspector) {
+  const fetch = stubApi({
+    '/api/inspections/7': completedInspection,
+    [checklistPath]: answered,
+  });
+  renderWithAuth(<AppRoutes />, {user, route: '/inspections/7'});
+  await screen.findByRole('heading', {name: 'Summary'});
+  return fetch;
+}
+
+describe('complete an inspection (story 16)', () => {
+  it('completes the inspection and shows the summary of passed, failed and N/A items and the findings (AC 16.1)', async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: answered,
+      [completePath]: completedInspection,
+    });
+    await completeAndConfirm();
+    await screen.findByRole('heading', {name: 'Summary'});
+    expect(sentCompletes(fetch)).toHaveLength(1);
+    expect(summaryCount('Passed')).toHaveTextContent('2');
+    expect(summaryCount('Failed')).toHaveTextContent('1');
+    expect(summaryCount('N/A')).toHaveTextContent('0');
+    const summary = screen.getByRole('heading', {
+      name: 'Summary',
+    }).parentElement!;
+    expect(within(summary).getByText('T-0012').parentElement).toHaveTextContent(
+      'Raw chicken stored above salad',
+    );
+    expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText(/Oct 14, 2026, 10:20\sAM/)).toBeInTheDocument();
+  });
+
+  it('asks for confirmation and completes only after it is confirmed (AC 16.1)', async () => {
+    const fetch = await openAsInspector({
+      [checklistPath]: answered,
+      [completePath]: completedInspection,
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Complete inspection'}));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Complete this inspection?',
+    });
+    expect(dialog).toHaveTextContent(
+      "Its answers and findings can't be changed after it is completed.",
+    );
+    expect(sentCompletes(fetch)).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole('button', {name: 'Complete'}));
+    await screen.findByRole('heading', {name: 'Summary'});
+    expect(sentCompletes(fetch)).toHaveLength(1);
+  });
+
+  it('sends nothing when the confirmation is cancelled (AC 16.1)', async () => {
+    const fetch = await openAsInspector({
+      [checklistPath]: answered,
+      [completePath]: completedInspection,
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Complete inspection'}));
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Complete this inspection?',
+    });
+    fireEvent.click(within(dialog).getByRole('button', {name: 'Cancel'}));
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    expect(sentCompletes(fetch)).toHaveLength(0);
+    expect(within(pageHeader()).getByText('In progress')).toBeInTheDocument();
+    expect(
+      within(await itemRow(0)).getByRole('radio', {name: 'Pass'}),
+    ).toBeChecked();
+    expect(
+      screen.getByRole('button', {name: 'Complete inspection'}),
+    ).toBeEnabled();
+  });
+
+  it('locks Complete inspection while it saves (AC 16.1)', async () => {
+    const fetch = await openAsInspector({[checklistPath]: answered});
+    let respond!: (res: Response) => void;
+    fetch.mockImplementationOnce(
+      () => new Promise((resolve) => (respond = resolve)),
+    );
+    await completeAndConfirm();
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole('button', {name: 'Complete inspection'}),
+    ).toBeDisabled();
+    respond(Response.json(completedInspection));
+    await screen.findByRole('heading', {name: 'Summary'});
+  });
+
+  it('shows "Answer every checklist item first" and keeps the inspection in progress (AC 16.2)', async () => {
+    await openAsInspector({
+      [checklistPath]: [answered[0], ...checklist.slice(1)],
+      [completePath]: Response.json(
+        {error: 'Answer every checklist item first'},
+        {status: 409},
+      ),
+    });
+    await completeAndConfirm();
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Answer every checklist item first',
+    );
+    expect(within(pageHeader()).getByText('In progress')).toBeInTheDocument();
+    expect(
+      within(await itemRow(1)).getByRole('radio', {name: 'Pass'}),
+    ).toBeEnabled();
+    expect(screen.getByRole('button', {name: 'Save finding'})).toBeEnabled();
+    expect(screen.queryByRole('heading', {name: 'Summary'})).toBeNull();
+  });
+
+  it('shows "Choose a finding for each failed item first" and sends nothing while a Fail waits for its finding', async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: answered,
+      [answerPath]: {...answered[0], answer: 'fail', ticketId: 12},
+      [completePath]: completedInspection,
+    });
+    const row = await itemRow(0);
+    fireEvent.click(within(row).getByRole('radio', {name: 'Fail'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Complete inspection'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Choose a finding for each failed item first',
+    );
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(sentCompletes(fetch)).toHaveLength(0);
+    fireEvent.change(within(row).getByLabelText(/^Finding for this item/), {
+      target: {value: '12'},
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+    );
+    await completeAndConfirm();
+    await screen.findByRole('heading', {name: 'Summary'});
+    expect(sentCompletes(fetch)).toHaveLength(1);
+  });
+
+  it.each([
+    Response.json({error: 'Internal server error'}, {status: 500}),
+    Response.json(
+      {error: 'This inspection is already completed'},
+      {status: 409},
+    ),
+  ])(
+    'shows the inspection completed when the server completed it but the complete failed',
+    async (failed) => {
+      let current: InspectionDetail = {...inspection, tickets: [ticket]};
+      await openAsInspector({
+        '/api/inspections/7': () => current,
+        [checklistPath]: answered,
+        [completePath]: () => {
+          current = completedInspection;
+          return failed;
+        },
+      });
+      await completeAndConfirm();
+      await screen.findByRole('heading', {name: 'Summary'});
+      expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByRole('radio')).toBeNull();
+      expect(screen.queryByRole('button', {name: 'Save finding'})).toBeNull();
+    },
+  );
+
+  it('locks the checklist and hides the finding form once the inspection is completed (AC 16.3)', async () => {
+    const fetch = await openAsInspector({
+      '/api/inspections/7': {...inspection, tickets: [ticket]},
+      [checklistPath]: answered,
+      [completePath]: completedInspection,
+    });
+    await itemRow(0);
+    await completeAndConfirm();
+    await screen.findByRole('heading', {name: 'Summary'});
+    expect(within(await itemRow(0)).getByText('Pass')).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('button', {name: 'Save finding'})).toBeNull();
+    expect(
+      screen.queryByRole('button', {name: 'Complete inspection'}),
+    ).toBeNull();
+    expect(
+      fetch.mock.calls.filter(([path]) => path === checklistPath),
+    ).toHaveLength(2);
+  });
+
+  it("shows a completed inspection's summary when it is opened (AC 16.1)", async () => {
+    await openCompleted(inspector);
+    expect(summaryCount('Passed')).toHaveTextContent('2');
+    expect(summaryCount('Failed')).toHaveTextContent('1');
+    expect(summaryCount('N/A')).toHaveTextContent('0');
+    expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText(/Oct 14, 2026, 10:20\sAM/)).toBeInTheDocument();
+  });
+
+  it("shows the store's owner the summary of a completed inspection and no Complete inspection button (AC 16.1)", async () => {
+    await openCompleted(owner);
+    expect(summaryCount('Passed')).toHaveTextContent('2');
+    expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {name: 'Complete inspection'}),
+    ).toBeNull();
+  });
+
+  it('opens a completed inspection with no way to change an answer or add a finding (AC 16.3)', async () => {
+    const fetch = await openCompleted(inspector);
+    expect(within(await itemRow(1)).getByText('T-0012')).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('button', {name: 'Save finding'})).toBeNull();
+    expect(
+      screen.queryByRole('button', {name: 'Complete inspection'}),
+    ).toBeNull();
+    expect(fetch.mock.calls.some(([, init]) => init?.method !== 'GET')).toBe(
+      false,
+    );
   });
 });

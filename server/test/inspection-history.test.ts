@@ -12,19 +12,24 @@ import {stores, users} from './helpers/users.js';
 vi.mock('../src/db/stores.js');
 vi.mock('../src/db/tickets.js');
 
-/** Inspection 8, then the older inspection 7, newest first. */
+/**
+ * Inspection 8, then the older inspection 7, newest first; only 7 is
+ * completed.
+ */
 const history: InspectionSummary[] = [
   {
     id: 8,
     startedAt: '2026-10-14T14:05:00.000Z',
     inspector: {firstName: 'Ivan', lastName: 'Checks'},
     findingCount: 2,
+    completedAt: null,
   },
   {
     id: 7,
     startedAt: '2026-09-30T15:00:00.000Z',
     inspector: {firstName: 'Ina', lastName: 'Spector'},
     findingCount: 1,
+    completedAt: '2026-09-30T16:00:00.000Z',
   },
 ];
 
@@ -75,6 +80,19 @@ describe('GET /api/stores/:storeId/inspections (story 14)', () => {
     expect(res.status).toBe(403);
     expect(res.body).toEqual({error: 'Access denied'});
     expect(inspectionsDb.listInspectionsForStore).not.toHaveBeenCalled();
+  });
+
+  it('sends whether each inspection is completed (AC 16.4)', async () => {
+    const res = await request(app)
+      .get('/api/stores/1/inspections')
+      .set(asUser('ownerA'));
+    expect(res.status).toBe(200);
+    expect(
+      res.body.map((row: InspectionSummary) => [row.id, row.completedAt]),
+    ).toEqual([
+      [8, null],
+      [7, '2026-09-30T16:00:00.000Z'],
+    ]);
   });
 
   it('is an empty list for a store with no inspections (AC 14.5)', async () => {
@@ -142,6 +160,7 @@ describe('listInspectionsForStore query', () => {
         started_at: '2026-10-14T14:05:00.000Z',
         inspector: {first_name: 'Ivan', last_name: 'Checks'},
         ticket: [{count: 2}],
+        completed_at: null,
       },
     ]);
     const result = await inspectionsDb.listInspectionsForStore(3);
@@ -159,8 +178,26 @@ describe('listInspectionsForStore query', () => {
     await inspectionsDb.listInspectionsForStore(3);
     expect(calls).toContainEqual([
       'select',
-      'inspection_id, started_at, inspector:app_user(first_name, last_name), ticket(count)',
+      'inspection_id, started_at, inspector:app_user(first_name, last_name), ticket(count), completed_at',
     ]);
+  });
+
+  it("asks the database for each inspection's completion time (AC 16.4)", async () => {
+    const calls = fakeQuery([
+      {
+        inspection_id: 7,
+        started_at: '2026-09-30T15:00:00.000Z',
+        inspector: {first_name: 'Ina', last_name: 'Spector'},
+        ticket: [{count: 1}],
+        completed_at: '2026-09-30T16:00:00.000Z',
+      },
+    ]);
+    const result = await inspectionsDb.listInspectionsForStore(1);
+    expect(calls).toContainEqual([
+      'select',
+      expect.stringContaining('completed_at'),
+    ]);
+    expect(result).toEqual([history[1]]);
   });
 });
 
@@ -191,6 +228,7 @@ describe('GET /api/inspections/:inspectionId (story 14)', () => {
       startedAt: '2026-09-30T15:00:00.000Z',
       storeId: 1,
       inspectorId: users.inspector.id,
+      completedAt: null,
     });
     vi.mocked(ticketsDb.listTicketsForInspection).mockResolvedValue([
       finding,
