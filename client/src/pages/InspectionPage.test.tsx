@@ -1068,3 +1068,18 @@ describe('complete an inspection (story 16)', () => {
     );
   });
 });
+
+// jsdom does no layout, so this checks the style that makes the button 42px
+// tall on a phone (story 21, AC 21.2). The real size was measured in Chrome
+// at 375 x 812.
+describe('inspection page on a phone (story 21)', () => {
+  it("makes the button that shows a finding's photo 42px tall (AC 21.2)", async () => {
+    await openWithFinding(inspector);
+    const show = screen.getByRole('button', {name: 'Show photo'});
+    expect(show).toHaveStyle({minHeight: '42px'});
+    fireEvent.click(show);
+    expect(screen.getByRole('button', {name: 'Hide photo'})).toHaveStyle({
+      minHeight: '42px',
+    });
+  });
+});
