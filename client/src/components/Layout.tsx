@@ -65,8 +65,8 @@ export function Layout() {
           <Button
             variant="white"
             color="navy"
-            size="xs"
-            h={32}
+            size="sm"
+            h={42}
             style={{flexShrink: 0}}
             leftSection={<IconLogout size={16} />}
             onClick={logout}

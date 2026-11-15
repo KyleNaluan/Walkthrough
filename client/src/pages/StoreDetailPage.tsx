@@ -1,10 +1,11 @@
-import {Alert, Anchor, Button, Group} from '@mantine/core';
-import {IconAlertCircle, IconArrowLeft} from '@tabler/icons-react';
+import {Alert, Button} from '@mantine/core';
+import {IconAlertCircle} from '@tabler/icons-react';
 import {useEffect, useRef, useState} from 'react';
-import {Link, useNavigate, useParams} from 'react-router';
+import {useNavigate, useParams} from 'react-router';
 import {ApiError, apiPost} from '../api';
 import {useAuth} from '../auth/useAuth';
 import {InspectionHistory} from '../components/InspectionHistory';
+import {BackLink} from '../components/ui/BackLink';
 import {Field} from '../components/ui/Field';
 import {LoadFailed, Loading} from '../components/ui/LoadState';
 import {PageHeader} from '../components/ui/PageHeader';
@@ -56,12 +57,7 @@ export function StoreDetailPage() {
 
   return (
     <>
-      <Anchor component={Link} to="/stores" fz="sm" mb="sm" display="block">
-        <Group gap={4} component="span">
-          <IconArrowLeft size={16} />
-          Back to stores
-        </Group>
-      </Anchor>
+      <BackLink to="/stores" label="Back to stores" />
       {store.status === 'loading' && <Loading />}
       {store.status === 'error' && (
         <>
