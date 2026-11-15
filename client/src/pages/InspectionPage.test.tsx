@@ -989,6 +989,33 @@ describe('complete an inspection (story 16)', () => {
     expect(sentCompletes(fetch)).toHaveLength(1);
   });
 
+  it.each([
+    Response.json({error: 'Internal server error'}, {status: 500}),
+    Response.json(
+      {error: 'This inspection is already completed'},
+      {status: 409},
+    ),
+  ])(
+    'shows the inspection completed when the server completed it but the complete failed',
+    async (failed) => {
+      let current: InspectionDetail = {...inspection, tickets: [ticket]};
+      await openAsInspector({
+        '/api/inspections/7': () => current,
+        [checklistPath]: answered,
+        [completePath]: () => {
+          current = completedInspection;
+          return failed;
+        },
+      });
+      await completeAndConfirm();
+      await screen.findByRole('heading', {name: 'Summary'});
+      expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).toBeNull();
+      expect(screen.queryByRole('radio')).toBeNull();
+      expect(screen.queryByRole('button', {name: 'Save finding'})).toBeNull();
+    },
+  );
+
   it('locks the checklist and hides the finding form once the inspection is completed (AC 16.3)', async () => {
     const fetch = await openAsInspector({
       '/api/inspections/7': {...inspection, tickets: [ticket]},

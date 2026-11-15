@@ -1,7 +1,7 @@
 import {Alert, Button, Modal, SimpleGrid, Text} from '@mantine/core';
 import {IconAlertCircle, IconCircleCheck} from '@tabler/icons-react';
 import {useState} from 'react';
-import {ApiError, apiPost} from '../api';
+import {ApiError, apiGet, apiPost} from '../api';
 import type {InspectionDetail} from '../types';
 import {Section} from './ui/Section';
 
@@ -41,7 +41,13 @@ export function CompleteInspection({
         ),
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not complete');
+      // The server may have completed it and failed afterwards.
+      const latest = await apiGet<InspectionDetail>(
+        `/api/inspections/${inspectionId}`,
+      ).catch(() => null);
+      if (latest?.completedAt) onCompleted(latest);
+      else
+        setError(err instanceof ApiError ? err.message : 'Could not complete');
     }
     setBusy(false);
   }
