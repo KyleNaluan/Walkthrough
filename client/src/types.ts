@@ -77,6 +77,17 @@ export interface InspectionSummary {
   completedAt: string | null;
 }
 
+/** A store's standing at a glance (story 20). */
+export interface StoreSummary {
+  openTickets: number;
+  overdueTickets: number;
+  lastInspection: {
+    id: number;
+    startedAt: string;
+    completedAt: string | null;
+  } | null;
+}
+
 /**
  * A row of the ticket list (story 8), with the ID of the re-inspection
  * waiting for a result, if any (story 12).

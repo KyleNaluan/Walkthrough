@@ -74,6 +74,11 @@ describe('InspectionHistory', () => {
   it("shows the server's message when the history cannot be loaded", async () => {
     stubApi({
       '/api/stores/1': stores[0],
+      '/api/stores/1/summary': {
+        openTickets: 0,
+        overdueTickets: 0,
+        lastInspection: null,
+      },
       '/api/stores/1/inspections': Response.json(
         {error: 'Internal server error'},
         {status: 500},
