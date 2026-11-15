@@ -50,6 +50,7 @@ function ticket(
     store: {id: 1, name: 'Main St Diner'},
     fixes,
     reinspections,
+    extensionRequests: [],
   };
 }
 
@@ -679,20 +680,5 @@ describe('ticket timeline (story 13)', () => {
       'Ticket not found',
     );
     expect(screen.queryByRole('heading', {name: 'Timeline'})).toBeNull();
-  });
-});
-
-// jsdom does no layout, so this checks the styles that make the button
-// 42px on a phone (story 21, AC 21.2). The real sizes of every control on
-// the ticket list and ticket page were measured in Chrome at 375 x 812.
-describe('ticket page on a phone (story 21)', () => {
-  it('makes the button that removes a chosen photo 42px square and names it (AC 21.2)', async () => {
-    openTicket(owner, ticket('open'));
-    await fillFix('Moved it.');
-    const remove = await screen.findByRole('button', {name: 'Remove photo'});
-    expect(remove).toHaveStyle({width: '42px', height: '42px'});
-    fireEvent.click(remove);
-    expect(screen.queryByText('fix.png')).toBeNull();
-    expect(screen.queryByRole('button', {name: 'Remove photo'})).toBeNull();
   });
 });

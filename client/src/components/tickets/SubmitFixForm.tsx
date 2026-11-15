@@ -7,7 +7,6 @@ import {resizeImage} from '../../lib/resizeImage';
 import type {TicketDetail} from '../../types';
 
 const PHOTO_TYPES = ['image/jpeg', 'image/png'];
-const CLEAR_BUTTON_SIZE = {width: 42, height: 42, minWidth: 42, minHeight: 42};
 
 /**
  * The store owner's fix: a description and a JPEG or PNG photo (story 9).
@@ -76,13 +75,6 @@ export function SubmitFixForm({
           accept={PHOTO_TYPES.join(',')}
           leftSection={<IconPhoto size={18} />}
           clearable
-          // The × that removes a chosen photo is 42px square, so it is easy
-          // to tap on a phone (story 21, AC 21.2).
-          rightSectionWidth={42}
-          clearButtonProps={{
-            'aria-label': 'Remove photo',
-            style: CLEAR_BUTTON_SIZE,
-          }}
           withAsterisk
           {...form.getInputProps('photo')}
         />

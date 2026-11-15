@@ -39,9 +39,6 @@ interface FakeTicket {
 const NOT_LATER = 'New deadline must be after the current one';
 const WAITING = 'An extension request is already waiting';
 const RESOLVED = 'This ticket is already resolved';
-const NOTHING_WAITING = 'No extension request is waiting';
-const DECIDED = 'This extension request has already been decided';
-const DENY_COMMENT = 'A comment is required to deny a request';
 
 /** A YYYY-MM-DD date `days` from today in the app's time zone. */
 function inDays(days: number): string {
@@ -136,12 +133,6 @@ beforeEach(() => {
         }),
       ]),
       ticket(7, 2, 'reinspection_scheduled'),
-      // Overdue, with a pending request for a later date.
-      ticket(8, 1, 'changes_requested', '2000-01-10', [
-        {...fakeRequest(42, 'pending'), previousDeadline: '2000-01-10'},
-      ]),
-      // Another owner's store, with a pending request.
-      ticket(9, 3, 'open', DEADLINE, [fakeRequest(43, 'pending')]),
     ].map((t) => [t.id, t]),
   );
   nextRequestId = 100;
@@ -174,25 +165,6 @@ beforeEach(() => {
         decision: null,
       });
       return id;
-    },
-  );
-  // The same checks as decide_extension in 007_extension_requests.sql.
-  vi.mocked(ticketsDb.decideExtension).mockImplementation(
-    async (requestId, inspectorId, decision, comment) => {
-      const t = [...db.values()].find((x) =>
-        x.requests.some((r) => r.id === requestId),
-      );
-      const r = t?.requests.find((x) => x.id === requestId);
-      if (!t || !r) throw p0001(NOTHING_WAITING);
-      if (r.status !== 'pending') throw p0001(DECIDED);
-      if (decision === 'denied' && !comment) throw p0001(DENY_COMMENT);
-      r.status = decision;
-      r.decision = {
-        comment,
-        decidedAt: '2026-11-15T16:00:00Z',
-        deciderId: inspectorId,
-      };
-      if (decision === 'approved') t.deadline = r.requestedDeadline;
     },
   );
 });
@@ -434,185 +406,5 @@ describe('POST /api/tickets/:ticketId/extension-requests (story 17)', () => {
       .send({deadline: LATER, reason: 'x'});
     expect(res.status).toBe(401);
     expect(ticketsDb.requestExtension).not.toHaveBeenCalled();
-  });
-});
-
-function decide(
-  ticketId: number,
-  requestId: number,
-  user: UserKey,
-  body: Record<string, unknown>,
-) {
-  return request(app)
-    .post(`/api/tickets/${ticketId}/extension-requests/${requestId}/decision`)
-    .set(asUser(user))
-    .send(body);
-}
-
-describe('POST /api/tickets/:ticketId/extension-requests/:requestId/decision (story 18)', () => {
-  it('approves: the deadline becomes the requested date and the decision is on the ticket (AC 18.1)', async () => {
-    const res = await decide(4, 40, 'inspector2', {decision: 'approved'});
-    expect(res.status).toBe(200);
-    expect(ticketsDb.decideExtension).toHaveBeenCalledWith(
-      40,
-      users.inspector2.id,
-      'approved',
-      null,
-    );
-    expect(res.body.deadline).toBe(LATER);
-    expect(res.body.extensionRequests).toEqual([
-      expect.objectContaining({
-        id: 40,
-        status: 'approved',
-        previousDeadline: DEADLINE,
-        decision: {
-          comment: null,
-          decidedAt: '2026-11-15T16:00:00Z',
-          deciderName: 'Ivan Checks',
-        },
-      }),
-    ]);
-  });
-
-  it('no longer marks the ticket Overdue once the new date is in the future (AC 18.1)', async () => {
-    const before = await request(app)
-      .get('/api/tickets/8')
-      .set(asUser('inspector'));
-    expect(before.body.overdue).toBe(true);
-    const res = await decide(8, 42, 'inspector', {decision: 'approved'});
-    expect(res.status).toBe(200);
-    expect(res.body.deadline).toBe(LATER);
-    expect(res.body.overdue).toBe(false);
-  });
-
-  it('still marks the ticket Overdue if the approved date has already passed (AC 18.1)', async () => {
-    db.get(8)!.requests[0].requestedDeadline = inDays(-1);
-    const res = await decide(8, 42, 'inspector', {decision: 'approved'});
-    expect(res.status).toBe(200);
-    expect(res.body.overdue).toBe(true);
-  });
-
-  it('keeps an optional comment on an approval', async () => {
-    await decide(4, 40, 'inspector', {
-      decision: 'approved',
-      comment: '  Fine, but no more extensions.  ',
-    });
-    expect(ticketsDb.decideExtension).toHaveBeenCalledWith(
-      40,
-      users.inspector.id,
-      'approved',
-      'Fine, but no more extensions.',
-    );
-  });
-
-  it('denies with a comment: the deadline stays and the owner sees the denial and comment (AC 18.2)', async () => {
-    const res = await decide(4, 40, 'inspector', {
-      decision: 'denied',
-      comment: '  Moving the chicken needs no parts.  ',
-    });
-    expect(res.status).toBe(200);
-    expect(res.body.deadline).toBe(DEADLINE);
-    expect(ticketsDb.decideExtension).toHaveBeenCalledWith(
-      40,
-      users.inspector.id,
-      'denied',
-      'Moving the chicken needs no parts.',
-    );
-    const seen = await request(app).get('/api/tickets/4').set(asUser('ownerA'));
-    expect(seen.body.extensionRequests[0]).toMatchObject({
-      status: 'denied',
-      decision: {
-        comment: 'Moving the chicken needs no parts.',
-        deciderName: 'Ina Spector',
-      },
-    });
-  });
-
-  it.each([undefined, '', '   '])(
-    'refuses a denial with comment %j, marks the comment and saves nothing (AC 18.3)',
-    async (comment) => {
-      const res = await decide(4, 40, 'inspector', {
-        decision: 'denied',
-        comment,
-      });
-      expect(res.status).toBe(400);
-      expect(res.body).toEqual({
-        error: DENY_COMMENT,
-        fields: {comment: DENY_COMMENT},
-      });
-      expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
-      expect(db.get(4)!.requests[0].status).toBe('pending');
-    },
-  );
-
-  it.each([
-    [1, 'has never had a request'],
-    [6, 'only has a denied request'],
-  ])('changes nothing on ticket %i, which %s (AC 18.4)', async (ticketId) => {
-    const before = structuredClone(db.get(ticketId));
-    const res = await decide(ticketId, 41, 'inspector', {
-      decision: 'approved',
-    });
-    expect(res.status).toBe(409);
-    expect(res.body).toEqual({error: NOTHING_WAITING});
-    expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
-    expect(db.get(ticketId)).toEqual(before);
-  });
-
-  it('refuses to decide a request other than the one waiting', async () => {
-    const res = await decide(4, 41, 'inspector', {decision: 'approved'});
-    expect(res.status).toBe(409);
-    expect(res.body).toEqual({error: DECIDED});
-    expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
-  });
-
-  it('passes on the refusal if another inspector decided it in the meantime', async () => {
-    vi.mocked(ticketsDb.decideExtension).mockRejectedValueOnce(p0001(DECIDED));
-    const res = await decide(4, 40, 'inspector', {decision: 'approved'});
-    expect(res.status).toBe(409);
-    expect(res.body).toEqual({error: DECIDED});
-  });
-
-  it.each([
-    ['approved', undefined],
-    ['denied', 'No'],
-  ])(
-    'refuses a store owner who sends %s with "Access denied" and changes nothing (AC 18.5)',
-    async (decision, comment) => {
-      const res = await decide(4, 40, 'ownerA', {decision, comment});
-      expect(res.status).toBe(403);
-      expect(res.body).toEqual({error: 'Access denied'});
-      expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
-      expect(db.get(4)!.deadline).toBe(DEADLINE);
-      expect(db.get(4)!.requests[0].status).toBe('pending');
-    },
-  );
-
-  it("refuses another store's owner too (AC 18.5)", async () => {
-    const res = await decide(9, 43, 'ownerB', {decision: 'approved'});
-    expect(res.status).toBe(403);
-    expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
-  });
-
-  it('refuses an unknown decision', async () => {
-    const res = await decide(4, 40, 'inspector', {decision: 'maybe'});
-    expect(res.status).toBe(400);
-    expect(res.body.fields).toEqual({
-      decision: 'Decision must be approved or denied',
-    });
-    expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
-  });
-
-  it('sends 404 for a ticket that does not exist', async () => {
-    const res = await decide(99, 40, 'inspector', {decision: 'approved'});
-    expect(res.status).toBe(404);
-  });
-
-  it('refuses a request that is not logged in', async () => {
-    const res = await request(app)
-      .post('/api/tickets/4/extension-requests/40/decision')
-      .send({decision: 'approved'});
-    expect(res.status).toBe(401);
-    expect(ticketsDb.decideExtension).not.toHaveBeenCalled();
   });
 });

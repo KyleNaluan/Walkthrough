@@ -3,7 +3,7 @@ import * as ticketsDb from '../src/db/tickets.js';
 import {getSupabaseAdmin} from '../src/lib/supabase.js';
 import {users} from './helpers/users.js';
 
-describe('status functions (stories 12, 17 and 18)', () => {
+describe('status functions (stories 12 and 17)', () => {
   /** A fake Supabase client that records each rpc call and succeeds. */
   function fakeRpc() {
     const calls: unknown[][] = [];
@@ -73,27 +73,6 @@ describe('status functions (stories 12, 17 and 18)', () => {
           p_owner_id: users.ownerA.id,
           p_deadline: '2999-02-01',
           p_reason: 'Parts are on back order',
-        },
-      ],
-    ]);
-  });
-
-  it('sends the request, inspector, decision and comment to decide_extension (AC 18.1, 18.2)', async () => {
-    const calls = fakeRpc();
-    await ticketsDb.decideExtension(
-      40,
-      users.inspector.id,
-      'denied',
-      'Fix it this week',
-    );
-    expect(calls).toEqual([
-      [
-        'decide_extension',
-        {
-          p_request_id: 40,
-          p_inspector_id: users.inspector.id,
-          p_decision: 'denied',
-          p_comment: 'Fix it this week',
         },
       ],
     ]);

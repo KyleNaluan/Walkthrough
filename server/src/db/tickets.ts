@@ -450,3 +450,25 @@ export async function requestExtension(
   if (error) throw error;
   return data as number;
 }
+
+// Story 18: decide an extension request ----------------------------------------
+
+/**
+ * Approves a pending request, which moves the ticket's deadline to the
+ * requested date, or denies it with a comment, in one step (decide_extension
+ * in 007_extension_requests.sql). A refusal is a P0001 error.
+ */
+export async function decideExtension(
+  requestId: number,
+  inspectorId: string,
+  decision: 'approved' | 'denied',
+  comment: string | null,
+): Promise<void> {
+  const {error} = await getSupabaseAdmin().rpc('decide_extension', {
+    p_request_id: requestId,
+    p_inspector_id: inspectorId,
+    p_decision: decision,
+    p_comment: comment,
+  });
+  if (error) throw error;
+}

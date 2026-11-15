@@ -30,7 +30,7 @@ import {
 import {requireRole, requireUser} from '../middleware/auth.js';
 
 // Stories 8-12 (ticket list, submit a fix, approve, request changes,
-// re-inspection), 17 and 18 (request and decide a deadline extension).
+// re-inspection) and 17 (deadline extension).
 export const ticketsRouter = Router();
 
 // Story 8: the ticket list ----------------------------------------------------
@@ -296,54 +296,5 @@ ticketsRouter.post(
     // ticket changed in between (AC 17.1).
     await tickets.requestExtension(ticketId, req.user!.id, deadline, reason);
     res.status(201).json(await reloadTicket(ticketId));
-  },
-);
-
-// Story 18: decide an extension request ---------------------------------------
-
-const NOTHING_WAITING = 'No extension request is waiting';
-const ALREADY_DECIDED = 'This extension request has already been decided';
-const DENY_COMMENT = 'A comment is required to deny a request';
-
-const decisionParams = z.object({ticketId: idParam, requestId: idParam});
-const decisionBody = z.object({
-  decision: z.enum(
-    ['approved', 'denied'],
-    'Decision must be approved or denied',
-  ),
-  comment: z.string('Comment must be text').trim().optional(),
-});
-
-/**
- * Approves or denies the ticket's pending request. The request's ID is in
- * the path, so a page left open can't decide a newer request it never
- * showed.
- */
-ticketsRouter.post(
-  '/tickets/:ticketId/extension-requests/:requestId/decision',
-  requireUser,
-  requireRole('inspector'), // AC 18.5
-  async (req, res) => {
-    const {ticketId, requestId} = parseParams(decisionParams, req);
-    const ticket = await loadTicket(req.user!, ticketId);
-    const {decision, comment} = parseBody(decisionBody, req);
-    const pending = ticket.extensionRequests.find(
-      (r) => r.status === 'pending',
-    );
-    if (!pending) throw new HttpError(409, NOTHING_WAITING); // AC 18.4
-    if (pending.id !== requestId) throw new HttpError(409, ALREADY_DECIDED);
-    if (decision === 'denied' && !comment) {
-      throw new HttpError(400, DENY_COMMENT, {comment: DENY_COMMENT}); // AC 18.3
-    }
-    // decide_extension saves the inspector and time, and on approval moves
-    // the deadline, so the ticket below is no longer overdue if the new date
-    // hasn't passed (AC 18.1, 18.2).
-    await tickets.decideExtension(
-      requestId,
-      req.user!.id,
-      decision,
-      comment || null,
-    );
-    res.json(await reloadTicket(ticketId));
   },
 );
