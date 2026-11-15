@@ -6,19 +6,24 @@ import {stubApi} from '../test/stubApi';
 import {inspection, inspector, owner, stores, ticket} from '../test/users';
 import type {InspectionSummary} from '../types';
 
-/** Store 1's inspections, newest first, as the server sends them. */
+/**
+ * Store 1's inspections, newest first, as the server sends them; only 7 is
+ * completed.
+ */
 const history: InspectionSummary[] = [
   {
     id: 8,
     startedAt: '2026-10-14T15:05:00.000Z',
     inspector: {firstName: 'Ivan', lastName: 'Checks'},
     findingCount: 2,
+    completedAt: null,
   },
   {
     id: 7,
     startedAt: '2026-09-30T15:00:00.000Z',
     inspector: {firstName: 'Jordan', lastName: 'Reyes'},
     findingCount: 1,
+    completedAt: '2026-09-30T16:00:00.000Z',
   },
 ];
 
@@ -37,6 +42,17 @@ describe('InspectionHistory', () => {
     expect(rows[1]).toHaveTextContent('Sep 30, 2026');
     expect(rows[1]).toHaveTextContent('Jordan Reyes');
     expect(rows[1]).toHaveTextContent('1 finding');
+  });
+
+  it('shows each inspection as Completed or In progress (AC 16.4)', async () => {
+    stubApi({'/api/stores/1': stores[0], '/api/stores/1/inspections': history});
+    renderWithAuth(<AppRoutes />, {user: inspector, route: '/stores/1'});
+    const list = await screen.findByRole('list', {name: 'Inspections'});
+    const rows = within(list).getAllByRole('link');
+    expect(rows[0]).toHaveTextContent('In progress');
+    expect(rows[0]).not.toHaveTextContent('Completed');
+    expect(rows[1]).toHaveTextContent('Completed');
+    expect(rows[1]).not.toHaveTextContent('In progress');
   });
 
   it("shows the owner their own store's inspection history (AC 14.3)", async () => {

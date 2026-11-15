@@ -28,6 +28,7 @@ export interface Inspection {
   startedAt: string;
   storeId: number;
   inspectorId: string;
+  completedAt: string | null;
 }
 
 export interface Ticket {
@@ -69,6 +70,7 @@ export interface InspectionSummary {
   startedAt: string;
   inspector: {firstName: string; lastName: string};
   findingCount: number;
+  completedAt: string | null;
 }
 
 /**

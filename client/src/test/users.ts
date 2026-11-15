@@ -29,6 +29,7 @@ export const inspection: InspectionDetail = {
   startedAt: '2026-10-14T14:05:00.000Z',
   storeId: 1,
   inspectorId: inspector.id,
+  completedAt: null,
   store: stores[0],
   inspector: {firstName: 'Jordan', lastName: 'Reyes'},
   tickets: [],

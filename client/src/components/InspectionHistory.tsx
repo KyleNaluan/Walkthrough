@@ -5,6 +5,7 @@ import {formatDateTime} from '../lib/format';
 import {useApi} from '../lib/useApi';
 import {recordNumber} from '../status';
 import type {InspectionSummary} from '../types';
+import {InspectionStateBadge} from './ui/Badges';
 import {LoadFailed, Loading} from './ui/LoadState';
 
 function findings(count: number): string {
@@ -31,9 +32,12 @@ function InspectionRow({inspection}: {inspection: InspectionSummary}) {
           <Text fw={600} lh={1.3}>
             {inspection.inspector.firstName} {inspection.inspector.lastName}
           </Text>
-          <Text fz="sm" c="dimmed">
-            {findings(inspection.findingCount)}
-          </Text>
+          <Group gap="xs">
+            <Text fz="sm" c="dimmed">
+              {findings(inspection.findingCount)}
+            </Text>
+            <InspectionStateBadge completedAt={inspection.completedAt} />
+          </Group>
         </Stack>
         <IconChevronRight
           size={18}

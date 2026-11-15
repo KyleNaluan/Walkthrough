@@ -27,6 +27,15 @@ export const CHECKLIST_ANSWER: Record<
   na: {label: 'N/A', color: 'gray'},
 };
 
+/** Whether an inspection is completed (story 16), with one colour each. */
+export const INSPECTION_STATE: Record<
+  'completed' | 'in_progress',
+  {label: string; color: string}
+> = {
+  completed: {label: 'Completed', color: 'green'},
+  in_progress: {label: 'In progress', color: 'navy'},
+};
+
 /** A record number such as T-0007, as printed on an inspection form. */
 export function recordNumber(prefix: string, id: number): string {
   return `${prefix}-${String(id).padStart(4, '0')}`;
