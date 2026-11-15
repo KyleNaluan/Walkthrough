@@ -1,0 +1,180 @@
+// Shapes the API sends; they match server/src/db/types.ts.
+export type Role = 'inspector' | 'store_owner';
+export type Severity = 'low' | 'medium' | 'high';
+export type TicketStatus =
+  | 'open'
+  | 'pending_review'
+  | 'changes_requested'
+  | 'reinspection_scheduled'
+  | 'resolved';
+
+export interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: Role;
+}
+
+export interface Store {
+  id: number;
+  name: string;
+  address: string;
+  ownerId: string;
+}
+
+export interface Inspection {
+  id: number;
+  startedAt: string;
+  storeId: number;
+  inspectorId: string;
+  completedAt: string | null;
+}
+
+export interface Ticket {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  recordedAt: string;
+  status: TicketStatus;
+  inspectionId: number;
+}
+
+export type ChecklistAnswer = 'pass' | 'fail' | 'na';
+
+/** How many items a completed inspection passed, failed and marked N/A. */
+export type ChecklistSummary = Record<ChecklistAnswer, number>;
+
+/**
+ * An inspection with its store, inspector and findings, and once completed
+ * its summary, from GET /api/inspections/:id.
+ */
+export interface InspectionDetail extends Inspection {
+  store: Store;
+  inspector: {firstName: string; lastName: string};
+  tickets: Ticket[];
+  summary: ChecklistSummary | null;
+}
+
+/**
+ * A checklist item with an inspection's answer, or null if not answered yet;
+ * `ticketId` is the finding a failed item is for (story 15).
+ */
+export interface ChecklistEntry {
+  id: number;
+  text: string;
+  answer: ChecklistAnswer | null;
+  ticketId: number | null;
+}
+
+/** A row of a store's inspection history (story 14). */
+export interface InspectionSummary {
+  id: number;
+  startedAt: string;
+  inspector: {firstName: string; lastName: string};
+  findingCount: number;
+  completedAt: string | null;
+}
+
+/** A store's standing at a glance (story 20). */
+export interface StoreSummary {
+  openTickets: number;
+  overdueTickets: number;
+  lastInspection: {
+    id: number;
+    startedAt: string;
+    completedAt: string | null;
+  } | null;
+}
+
+/**
+ * A row of the ticket list (story 8), with the ID of the re-inspection
+ * waiting for a result, if any (story 12).
+ */
+export interface TicketSummary {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  status: TicketStatus;
+  overdue: boolean;
+  store: {id: number; name: string};
+  reinspectionId: number | null;
+}
+
+export type ReviewDecision =
+  'approved' | 'changes_requested' | 'reinspection_scheduled';
+
+export interface FixReview {
+  decision: ReviewDecision;
+  comment: string | null;
+  reviewedAt: string;
+  reviewerName: string;
+}
+
+/** One fix round; `review` stays null until an inspector reviews it. */
+export interface FixSubmission {
+  id: number;
+  description: string;
+  submittedAt: string;
+  review: FixReview | null;
+}
+
+export type ReinspectionOutcome = 'pending' | 'passed' | 'failed';
+
+/** A re-inspection; `visit` stays null until its result is recorded. */
+export interface Reinspection {
+  id: number;
+  scheduledFor: string;
+  outcome: ReinspectionOutcome;
+  createdAt: string;
+  visit: {
+    inspectionId: number;
+    startedAt: string;
+    inspectorName: string;
+  } | null;
+}
+
+export type ExtensionStatus = 'pending' | 'approved' | 'denied';
+
+/** An inspector's decision on an extension request (story 18). */
+export interface ExtensionDecision {
+  comment: string | null;
+  decidedAt: string;
+  deciderName: string;
+}
+
+/**
+ * An owner's request for a later deadline (story 17). `previousDeadline` is
+ * the deadline when they asked; `decision` stays null while it is pending.
+ */
+export interface ExtensionRequest {
+  id: number;
+  previousDeadline: string;
+  requestedDeadline: string;
+  reason: string;
+  requestedAt: string;
+  requesterName: string;
+  status: ExtensionStatus;
+  decision: ExtensionDecision | null;
+}
+
+/**
+ * A ticket with its store, every fix round, every re-inspection and every
+ * extension request, oldest first.
+ */
+export interface TicketDetail {
+  id: number;
+  description: string;
+  severity: Severity;
+  deadline: string;
+  recordedAt: string;
+  status: TicketStatus;
+  overdue: boolean;
+  inspectionId: number;
+  store: {id: number; name: string};
+  fixes: FixSubmission[];
+  reinspections: Reinspection[];
+  extensionRequests: ExtensionRequest[];
+}
