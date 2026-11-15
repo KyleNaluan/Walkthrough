@@ -1,8 +1,9 @@
 -- database/007_extension_requests.sql
 -- Deadline extensions (stories 17 and 18): a store owner asks for a later
--- deadline with a reason, and an inspector approves or denies it. Run once
--- in the Supabase SQL editor, after 006_inspection_completed.sql. It only
--- adds things, so it is safe to run before the code that uses it is merged.
+-- deadline with a reason, and an inspector approves or denies it. A request
+-- still pending when its ticket is resolved is closed. Run once in the
+-- Supabase SQL editor, after 006_inspection_completed.sql. It only adds
+-- things, so it is safe to run before the code that uses it is merged.
 --
 -- Same rules as 002: the functions check the ticket and the request, not who
 -- is calling. The server checks the caller's role and store access first and
@@ -10,13 +11,15 @@
 -- shows as is (a 409).
 
 -- Value lists -----------------------------------------------------------
+-- closed: the ticket was resolved before an inspector decided.
 
-create type extension_status as enum ('pending', 'approved', 'denied');
+create type extension_status as enum ('pending', 'approved', 'denied', 'closed');
 
 -- ExtensionRequest ------------------------------------------------------
 -- previous_deadline is the ticket's deadline when the owner asked, so the
 -- history still shows it after an approval moves the deadline. The three
--- decision columns stay empty while the request is pending.
+-- decision columns stay empty while the request is pending. A closed
+-- request only has decided_at, the time its ticket was resolved.
 
 create table extension_request (
   extension_request_id bigint generated always as identity primary key,
@@ -40,15 +43,18 @@ create table extension_request (
   -- A request always gives a reason (AC 17.3).
   constraint reason_given check (btrim(reason) <> ''),
   -- A decision has a decider and a time, and a pending request has neither.
+  -- Nobody decides a closed request, so it only has the time.
   constraint decision_is_complete check (
-    (status = 'pending' and decided_by is null and decided_at is null)
-    or (status <> 'pending' and decided_by is not null
-        and decided_at is not null)
+    case status
+      when 'pending' then decided_by is null and decided_at is null
+      when 'closed' then decided_by is null and decided_at is not null
+      else decided_by is not null and decided_at is not null
+    end
   ),
   -- A comment only exists as part of a decision, and a denial needs one
   -- (AC 18.3).
   constraint comment_needs_decision
-    check (decision_comment is null or status <> 'pending'),
+    check (decision_comment is null or status in ('approved', 'denied')),
   constraint denial_needs_comment
     check (status <> 'denied' or btrim(coalesce(decision_comment, '')) <> '')
 );
@@ -135,11 +141,12 @@ set search_path = public
 as $$
 declare
   v_ticket_id bigint;
+  v_ticket_status ticket_status;
   v_requested date;
   v_status extension_status;
   v_comment text := nullif(btrim(p_comment), '');
 begin
-  if p_decision is null or p_decision = 'pending' then
+  if p_decision is null or p_decision not in ('approved', 'denied') then
     raise exception 'Decision must be approved or denied'
       using errcode = 'P0001';
   end if;
@@ -152,7 +159,16 @@ begin
   end if;
 
   -- Lock the ticket first, then the request, as review_fix does.
-  perform 1 from ticket where ticket_id = v_ticket_id for update;
+  select status into v_ticket_status
+    from ticket
+    where ticket_id = v_ticket_id
+    for update;
+  -- A resolved ticket's deadline no longer matters, and resolving it closed
+  -- the request.
+  if v_ticket_status = 'resolved' then
+    raise exception 'This ticket is already resolved'
+      using errcode = 'P0001';
+  end if;
   select status, requested_deadline into v_status, v_requested
     from extension_request
     where extension_request_id = p_request_id
@@ -182,6 +198,31 @@ begin
 end;
 $$;
 
+-- Close: resolving a ticket closes its pending request ------------------
+-- review_fix (an approved fix) and record_reinspection (a passed
+-- re-inspection) resolve a ticket. This trigger runs inside them, after
+-- they have locked the ticket, so the lock order stays ticket then request.
+-- Being on the ticket, it also covers any other way a ticket is resolved.
+
+create function close_extension_requests()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  update extension_request
+    set status = 'closed', decided_at = now()
+    where ticket_id = new.ticket_id and status = 'pending';
+  return null;
+end;
+$$;
+
+create trigger close_extension_requests
+  after update of status on ticket
+  for each row
+  when (new.status = 'resolved' and old.status <> 'resolved')
+  execute function close_extension_requests();
+
 -- Access ----------------------------------------------------------------
 -- As in 001-004, only the Express server, with the secret key, reaches the
 -- table and calls the functions.
@@ -190,9 +231,11 @@ alter table extension_request enable row level security;
 
 grant select, insert, update, delete on extension_request to service_role;
 
+-- The trigger function is never called directly, so nobody gets it.
 revoke execute on function
   request_extension(bigint, uuid, date, text),
-  decide_extension(bigint, uuid, extension_status, text)
+  decide_extension(bigint, uuid, extension_status, text),
+  close_extension_requests()
   from public, anon, authenticated;
 
 grant execute on function

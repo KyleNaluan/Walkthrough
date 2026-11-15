@@ -237,6 +237,34 @@ describe('request a deadline extension (story 17)', () => {
     expect(screen.queryByText('Deadline extension')).toBeNull();
   });
 
+  it('shows a request closed by resolving the ticket as closed, not waiting (AC 17.5)', async () => {
+    openTicket(
+      owner,
+      ticket('resolved', [{...pendingRequest, status: 'closed'}]),
+    );
+    const entry = await screen.findByRole('group', {
+      name: 'Extension request 1',
+    });
+    expect(entry).toHaveTextContent(
+      'Closed without a decision when the ticket was resolved',
+    );
+    expect(entry).not.toHaveTextContent('Waiting for a decision');
+    expect(
+      screen.queryByText('Extension requested', {selector: 'span *, span'}),
+    ).toBeNull();
+    expect(screen.queryByText('Deadline extension')).toBeNull();
+  });
+
+  it('never shows a request as waiting on a Resolved ticket (AC 17.5)', async () => {
+    // The database closes it on resolve; the page doesn't rely on that alone.
+    openTicket(owner, ticket('resolved', [pendingRequest]));
+    await screen.findByRole('group', {name: 'Extension request 1'});
+    expect(
+      screen.queryByText('Extension requested', {selector: 'span *, span'}),
+    ).toBeNull();
+    expect(screen.queryByText(/Extension to .* requested/)).toBeNull();
+  });
+
   it('offers an inspector no request, but shows them the pending one (AC 17.6)', async () => {
     openTicket(inspector, ticket('open', [pendingRequest]));
     expect(

@@ -136,7 +136,8 @@ export interface Reinspection {
   } | null;
 }
 
-export type ExtensionStatus = 'pending' | 'approved' | 'denied';
+// closed: the ticket was resolved before an inspector decided.
+export type ExtensionStatus = 'pending' | 'approved' | 'denied' | 'closed';
 
 /** An inspector's decision on an extension request (story 18). */
 export interface ExtensionDecision {
@@ -147,7 +148,8 @@ export interface ExtensionDecision {
 
 /**
  * An owner's request for a later deadline (story 17). `previousDeadline` is
- * the deadline when they asked; `decision` stays null while it is pending.
+ * the deadline when they asked; `decision` stays null while it is pending,
+ * and for a request closed because the ticket was resolved.
  */
 export interface ExtensionRequest {
   id: number;

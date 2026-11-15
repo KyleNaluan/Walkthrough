@@ -177,4 +177,39 @@ describe('getTicket query (story 13)', () => {
       },
     ]);
   });
+
+  it('gives a request closed by resolving the ticket no decision (AC 17.5)', async () => {
+    fakeQuery({
+      ...dbRow,
+      status: 'resolved',
+      extension_request: [
+        {
+          extension_request_id: 9,
+          previous_deadline: '2026-10-27',
+          requested_deadline: '2026-11-03',
+          reason: 'Waiting on a plumber',
+          requested_at: '2026-10-21T15:00:00+00:00',
+          // 007 closes a pending request when its ticket is resolved.
+          status: 'closed',
+          decision_comment: null,
+          decided_at: '2026-10-22T15:00:00+00:00',
+          requester: {first_name: 'Olivia', last_name: 'Owner'},
+          decider: null,
+        },
+      ],
+    });
+    const ticket = await ticketsDb.getTicket(4);
+    expect(ticket!.extensionRequests).toEqual([
+      {
+        id: 9,
+        previousDeadline: '2026-10-27',
+        requestedDeadline: '2026-11-03',
+        reason: 'Waiting on a plumber',
+        requestedAt: '2026-10-21T15:00:00+00:00',
+        requesterName: 'Olivia Owner',
+        status: 'closed',
+        decision: null,
+      },
+    ]);
+  });
 });

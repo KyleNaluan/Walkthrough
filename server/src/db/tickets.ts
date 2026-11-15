@@ -258,9 +258,12 @@ function fullName(person: PersonRow): string {
 }
 
 function toExtensionRequest(row: ExtensionRequestRow): ExtensionRequest {
-  // decision_is_complete in 007_extension_requests.sql: a decided request
-  // has a decider and a time.
-  const decided = row.status !== 'pending' && row.decided_at && row.decider;
+  // decision_is_complete in 007_extension_requests.sql: an approved or
+  // denied request has a decider and a time. A closed one has no decider.
+  const decided =
+    (row.status === 'approved' || row.status === 'denied') &&
+    row.decided_at &&
+    row.decider;
   return {
     id: row.extension_request_id,
     previousDeadline: row.previous_deadline,
