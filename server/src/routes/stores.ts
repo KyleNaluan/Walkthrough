@@ -2,14 +2,16 @@ import {Router} from 'express';
 import {z} from 'zod';
 import * as inspections from '../db/inspections.js';
 import * as stores from '../db/stores.js';
+import * as tickets from '../db/tickets.js';
 import * as users from '../db/users.js';
 import {assertStoreAccess} from '../lib/access.js';
 import {HttpError} from '../lib/errors.js';
+import {summarizeStore} from '../lib/summary.js';
 import {idParam, nonBlank, parseBody, parseParams} from '../lib/validate.js';
 import {requireRole, requireUser} from '../middleware/auth.js';
 
-// Stories 2, 3, 14 and 23 (store list, store detail, inspection history and
-// adding a store).
+// Stories 2, 3, 14, 20 and 23 (store list, store detail, inspection history,
+// summary card and adding a store).
 export const storesRouter = Router();
 
 const OWNER_NOT_STORE_OWNER = 'Owner must be a store owner account';
@@ -71,3 +73,18 @@ storesRouter.get(
     res.json(await inspections.listInspectionsForStore(storeId));
   },
 );
+
+/**
+ * A store's open and overdue ticket counts and its latest inspection (story
+ * 20). Access is checked first, so another owner gets 403 and no counts
+ * (AC 20.3).
+ */
+storesRouter.get('/stores/:storeId/summary', requireUser, async (req, res) => {
+  const {storeId} = parseParams(storeParams, req);
+  await assertStoreAccess(req.user!, storeId);
+  const [storeTickets, history] = await Promise.all([
+    tickets.listTickets({storeIds: [storeId]}),
+    inspections.listInspectionsForStore(storeId),
+  ]);
+  res.json(summarizeStore(storeTickets, history));
+});
