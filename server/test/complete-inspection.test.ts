@@ -48,11 +48,11 @@ const completedAt = '2026-10-14T15:00:00.000Z';
 let answers: Map<number, ChecklistAnswer>;
 let completed: string | null;
 
-/** Answers every item of inspection 7: one Pass, one Fail and one N/A. */
+/** Answers every item of inspection 7: two Passes, one Fail and no N/A. */
 function answerAll() {
   answers.set(1, 'pass');
   answers.set(2, 'fail');
-  answers.set(3, 'na');
+  answers.set(3, 'pass');
 }
 
 beforeEach(() => {
@@ -116,7 +116,7 @@ describe('POST /api/inspections/:inspectionId/complete (story 16)', () => {
     answerAll();
     const res = await complete();
     expect(res.status).toBe(200);
-    expect(res.body.summary).toEqual({pass: 1, fail: 1, na: 1});
+    expect(res.body.summary).toEqual({pass: 2, fail: 1, na: 0});
     expect(res.body.tickets).toEqual([finding]);
   });
 
@@ -218,7 +218,7 @@ describe('GET /api/inspections/:inspectionId (story 16)', () => {
       .set(asUser('ownerA'));
     expect(res.status).toBe(200);
     expect(res.body.completedAt).toBe(completedAt);
-    expect(res.body.summary).toEqual({pass: 1, fail: 1, na: 1});
+    expect(res.body.summary).toEqual({pass: 2, fail: 1, na: 0});
   });
 
   it('opens an inspection in progress with no completion time or summary (AC 16.1)', async () => {

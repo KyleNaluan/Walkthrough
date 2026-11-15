@@ -807,11 +807,11 @@ describe('checklist (story 15)', () => {
 const completePath = 'POST /api/inspections/7/complete';
 const completedAt = '2026-10-14T15:20:00.000Z';
 
-/** Items 1-3 answered: Pass, Fail with ticket 12, and N/A. */
+/** Items 1-3 answered: Pass, Fail with ticket 12, and Pass. */
 const answered: ChecklistEntry[] = [
   {...checklist[0], answer: 'pass'},
   {...checklist[1], answer: 'fail', ticketId: 12},
-  {...checklist[2], answer: 'na'},
+  {...checklist[2], answer: 'pass'},
 ];
 
 /** Inspection 7 completed with ticket 12, as the server sends it. */
@@ -819,7 +819,7 @@ const completedInspection: InspectionDetail = {
   ...inspection,
   tickets: [ticket],
   completedAt,
-  summary: {pass: 1, fail: 1, na: 1},
+  summary: {pass: 2, fail: 1, na: 0},
 };
 
 /** The page header, with the store name and the inspection's state. */
@@ -872,9 +872,9 @@ describe('complete an inspection (story 16)', () => {
     await completeAndConfirm();
     await screen.findByRole('heading', {name: 'Summary'});
     expect(sentCompletes(fetch)).toHaveLength(1);
-    expect(summaryCount('Passed')).toHaveTextContent('1');
+    expect(summaryCount('Passed')).toHaveTextContent('2');
     expect(summaryCount('Failed')).toHaveTextContent('1');
-    expect(summaryCount('N/A')).toHaveTextContent('1');
+    expect(summaryCount('N/A')).toHaveTextContent('0');
     const summary = screen.getByRole('heading', {
       name: 'Summary',
     }).parentElement!;
@@ -1038,16 +1038,16 @@ describe('complete an inspection (story 16)', () => {
 
   it("shows a completed inspection's summary when it is opened (AC 16.1)", async () => {
     await openCompleted(inspector);
-    expect(summaryCount('Passed')).toHaveTextContent('1');
+    expect(summaryCount('Passed')).toHaveTextContent('2');
     expect(summaryCount('Failed')).toHaveTextContent('1');
-    expect(summaryCount('N/A')).toHaveTextContent('1');
+    expect(summaryCount('N/A')).toHaveTextContent('0');
     expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
     expect(screen.getByText(/Oct 14, 2026, 10:20\sAM/)).toBeInTheDocument();
   });
 
   it("shows the store's owner the summary of a completed inspection and no Complete inspection button (AC 16.1)", async () => {
     await openCompleted(owner);
-    expect(summaryCount('Passed')).toHaveTextContent('1');
+    expect(summaryCount('Passed')).toHaveTextContent('2');
     expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
     expect(
       screen.queryByRole('button', {name: 'Complete inspection'}),
