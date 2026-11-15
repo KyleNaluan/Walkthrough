@@ -7,7 +7,7 @@ import {AppRoutes} from '../routes';
 import {renderWithAuth} from '../test/renderWithAuth';
 import {stubApi} from '../test/stubApi';
 import {inspection, inspector, owner, stores, ticket} from '../test/users';
-import type {ChecklistEntry, TicketSummary} from '../types';
+import type {ChecklistEntry, InspectionDetail, TicketSummary} from '../types';
 
 // Photos go up unchanged unless a test shrinks them.
 vi.mock('../lib/resizeImage', () => ({
@@ -801,5 +801,79 @@ describe('checklist (story 15)', () => {
     );
     expect(within(row).getByRole('radio', {name: 'Pass'})).toBeChecked();
     expect(within(row).getByRole('radio', {name: 'N/A'})).not.toBeChecked();
+  });
+});
+
+const completedAt = '2026-10-14T15:20:00.000Z';
+
+/** Items 1-3 answered: Pass, Fail with ticket 12, and N/A. */
+const answered: ChecklistEntry[] = [
+  {...checklist[0], answer: 'pass'},
+  {...checklist[1], answer: 'fail', ticketId: 12},
+  {...checklist[2], answer: 'na'},
+];
+
+/** Inspection 7 completed with ticket 12, as the server sends it. */
+const completedInspection: InspectionDetail = {
+  ...inspection,
+  tickets: [ticket],
+  completedAt,
+  summary: {pass: 1, fail: 1, na: 1},
+};
+
+/** The page header, with the store name and the inspection's state. */
+function pageHeader() {
+  return screen.getByRole('heading', {name: 'Main St Diner', level: 1})
+    .parentElement!.parentElement!;
+}
+
+/** The box in the summary for `label`, with its count. */
+function summaryCount(label: string) {
+  const summary = screen.getByRole('heading', {name: 'Summary'}).parentElement!;
+  return within(summary).getByText(label).parentElement!;
+}
+
+/** Opens completed inspection 7 as `user`. */
+async function openCompleted(user: typeof inspector) {
+  const fetch = stubApi({
+    '/api/inspections/7': completedInspection,
+    [checklistPath]: answered,
+  });
+  renderWithAuth(<AppRoutes />, {user, route: '/inspections/7'});
+  await screen.findByRole('heading', {name: 'Summary'});
+  return fetch;
+}
+
+describe('complete an inspection (story 16)', () => {
+  it("shows a completed inspection's summary when it is opened (AC 16.1)", async () => {
+    await openCompleted(inspector);
+    expect(summaryCount('Passed')).toHaveTextContent('1');
+    expect(summaryCount('Failed')).toHaveTextContent('1');
+    expect(summaryCount('N/A')).toHaveTextContent('1');
+    expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
+    expect(screen.getByText(/Oct 14, 2026, 10:20\sAM/)).toBeInTheDocument();
+  });
+
+  it("shows the store's owner the summary of a completed inspection and no Complete inspection button (AC 16.1)", async () => {
+    await openCompleted(owner);
+    expect(summaryCount('Passed')).toHaveTextContent('1');
+    expect(within(pageHeader()).getByText('Completed')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', {name: 'Complete inspection'}),
+    ).toBeNull();
+  });
+
+  it('opens a completed inspection with no way to change an answer or add a finding (AC 16.3)', async () => {
+    const fetch = await openCompleted(inspector);
+    expect(within(await itemRow(1)).getByText('T-0012')).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByRole('combobox')).toBeNull();
+    expect(screen.queryByRole('button', {name: 'Save finding'})).toBeNull();
+    expect(
+      screen.queryByRole('button', {name: 'Complete inspection'}),
+    ).toBeNull();
+    expect(fetch.mock.calls.some(([, init]) => init?.method !== 'GET')).toBe(
+      false,
+    );
   });
 });

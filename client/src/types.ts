@@ -41,17 +41,21 @@ export interface Ticket {
   inspectionId: number;
 }
 
+export type ChecklistAnswer = 'pass' | 'fail' | 'na';
+
+/** How many items a completed inspection passed, failed and marked N/A. */
+export type ChecklistSummary = Record<ChecklistAnswer, number>;
+
 /**
- * An inspection with its store, inspector and findings, from
- * GET /api/inspections/:id.
+ * An inspection with its store, inspector and findings, and once completed
+ * its summary, from GET /api/inspections/:id.
  */
 export interface InspectionDetail extends Inspection {
   store: Store;
   inspector: {firstName: string; lastName: string};
   tickets: Ticket[];
+  summary: ChecklistSummary | null;
 }
-
-export type ChecklistAnswer = 'pass' | 'fail' | 'na';
 
 /**
  * A checklist item with an inspection's answer, or null if not answered yet;

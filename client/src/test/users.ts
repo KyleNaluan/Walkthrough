@@ -33,6 +33,7 @@ export const inspection: InspectionDetail = {
   store: stores[0],
   inspector: {firstName: 'Jordan', lastName: 'Reyes'},
   tickets: [],
+  summary: null,
 };
 
 /** Ticket 12, a finding recorded on inspection 7. */
