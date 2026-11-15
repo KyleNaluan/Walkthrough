@@ -162,3 +162,6 @@ export interface ChecklistEntry {
   answer: ChecklistAnswer | null;
   ticketId: number | null;
 }
+
+/** How many items a completed inspection passed, failed and marked N/A. */
+export type ChecklistSummary = Record<ChecklistAnswer, number>;

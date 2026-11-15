@@ -3,6 +3,7 @@ import {z} from 'zod';
 import * as checklist from '../db/checklist.js';
 import * as inspections from '../db/inspections.js';
 import * as tickets from '../db/tickets.js';
+import type {Store} from '../db/types.js';
 import * as users from '../db/users.js';
 import {
   assertInspectionAccess,
@@ -27,8 +28,8 @@ import {
 } from '../lib/validate.js';
 import {requireRole, requireUser} from '../middleware/auth.js';
 
-// Stories 5 (start an inspection), 6 (record a finding), 7 (finding photo)
-// and 15 (inspection checklist).
+// Stories 5 (start an inspection), 6 (record a finding), 7 (finding photo),
+// 15 (inspection checklist) and 16 (complete an inspection).
 export const inspectionsRouter = Router();
 
 const storeParams = z.object({storeId: idParam});
@@ -46,6 +47,25 @@ const answerBody = z.object({
 });
 
 const FINDING_REQUIRED = 'Record a finding for a failed item';
+const ALREADY_COMPLETED = 'This inspection is already completed';
+
+/**
+ * An inspection with its store, inspector and findings, and once completed
+ * its summary (AC 16.1).
+ */
+async function inspectionDetail(store: Store, inspectionId: number) {
+  const inspection = (await inspections.getInspection(inspectionId))!;
+  const inspector = (await users.getUserById(inspection.inspectorId))!;
+  return {
+    ...inspection,
+    store,
+    inspector: {firstName: inspector.firstName, lastName: inspector.lastName},
+    tickets: await tickets.listTicketsForInspection(inspectionId),
+    summary: inspection.completedAt
+      ? checklist.summarize(await checklist.listChecklist(inspectionId))
+      : null,
+  };
+}
 
 // The inspector comes from the session, never the request body (AC 5.1).
 inspectionsRouter.post(
@@ -69,14 +89,7 @@ inspectionsRouter.get(
   async (req, res) => {
     const {inspectionId} = parseParams(inspectionParams, req);
     const store = await assertInspectionAccess(req.user!, inspectionId);
-    const inspection = (await inspections.getInspection(inspectionId))!;
-    const inspector = (await users.getUserById(inspection.inspectorId))!;
-    res.json({
-      ...inspection,
-      store,
-      inspector: {firstName: inspector.firstName, lastName: inspector.lastName},
-      tickets: await tickets.listTicketsForInspection(inspectionId),
-    });
+    res.json(await inspectionDetail(store, inspectionId));
   },
 );
 
@@ -160,5 +173,28 @@ inspectionsRouter.put(
     };
     await checklist.saveAnswer(inspectionId, itemId, answer, saved.ticketId);
     res.json(saved);
+  },
+);
+
+// Every item must be answered (AC 16.2), and the completion time is set only
+// once, so a second complete is refused and keeps the first time (AC 16.3).
+inspectionsRouter.post(
+  '/inspections/:inspectionId/complete',
+  requireUser,
+  requireRole('inspector'),
+  async (req, res) => {
+    const {inspectionId} = parseParams(inspectionParams, req);
+    const store = await assertInspectionAccess(req.user!, inspectionId);
+    const inspection = (await inspections.getInspection(inspectionId))!;
+    if (inspection.completedAt) throw new HttpError(409, ALREADY_COMPLETED);
+    const entries = await checklist.listChecklist(inspectionId);
+    if (entries.some((entry) => entry.answer === null)) {
+      throw new HttpError(409, 'Answer every checklist item first');
+    }
+    // Null if another request completed it since the check above.
+    if (!(await inspections.completeInspection(inspectionId))) {
+      throw new HttpError(409, ALREADY_COMPLETED);
+    }
+    res.json(await inspectionDetail(store, inspectionId));
   },
 );

@@ -219,6 +219,7 @@ describe('GET /api/inspections/:inspectionId', () => {
       store: stores[0],
       inspector: {firstName: 'Ina', lastName: 'Spector'},
       tickets: [],
+      summary: null,
     });
   });
 
@@ -232,6 +233,7 @@ describe('GET /api/inspections/:inspectionId', () => {
       store: stores[0],
       inspector: {firstName: 'Ina', lastName: 'Spector'},
       tickets: [],
+      summary: null,
     });
   });
 

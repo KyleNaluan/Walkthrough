@@ -39,6 +39,24 @@ export async function getInspection(id: number): Promise<Inspection | null> {
   return data && toInspection(data);
 }
 
+/**
+ * Sets an inspection's completion time to now. Null if it was already
+ * completed, so the first time is kept.
+ */
+export async function completeInspection(
+  id: number,
+): Promise<Inspection | null> {
+  const {data, error} = await getSupabaseAdmin()
+    .from('inspection')
+    .update({completed_at: new Date().toISOString()})
+    .eq('inspection_id', id)
+    .is('completed_at', null)
+    .select(inspectionColumns)
+    .maybeSingle<InspectionRow>();
+  if (error) throw error;
+  return data && toInspection(data);
+}
+
 interface InspectionSummaryRow {
   inspection_id: number;
   started_at: string;
