@@ -270,3 +270,191 @@ describe('request a deadline extension (story 17)', () => {
     ).toBeInTheDocument();
   });
 });
+
+const DECISION_PATH = '/api/tickets/4/extension-requests/40/decision';
+
+/** The date in the ticket's Deadline field. */
+function deadlineShown() {
+  return screen.getByText('Deadline', {exact: true}).nextElementSibling
+    ?.textContent;
+}
+const DENY_COMMENT = 'A comment is required to deny a request';
+
+function decided(
+  request: ExtensionRequest,
+  status: 'approved' | 'denied',
+  comment: string | null,
+): ExtensionRequest {
+  return {
+    ...request,
+    status,
+    decision: {
+      comment,
+      decidedAt: '2026-11-15T16:00:00Z',
+      deciderName: 'Jordan Reyes',
+    },
+  };
+}
+
+describe('decide an extension request (story 18)', () => {
+  it('approves: the deadline moves, Overdue goes away and the decision is in the timeline (AC 18.1)', async () => {
+    const overdue = ticket('changes_requested', [pendingRequest], '2020-01-10');
+    const fetch = openTicket(inspector, overdue, {
+      [DECISION_PATH]: {
+        ...ticket(
+          'changes_requested',
+          [decided(pendingRequest, 'approved', null)],
+          '2099-02-01',
+        ),
+        overdue: false,
+      },
+    });
+    expect(await screen.findByText('Overdue')).toBeInTheDocument();
+    const panel = screen.getByText('Sam Carter asks to move the deadline', {
+      exact: false,
+    });
+    expect(panel).toHaveTextContent('from Jan 10, 2099 to Feb 1, 2099');
+    fireEvent.click(screen.getByRole('button', {name: 'Approve extension'}));
+
+    const entry = await screen.findByRole('group', {
+      name: 'Extension decision 1',
+    });
+    expect(entry).toHaveTextContent('Extension approved');
+    expect(entry).toHaveTextContent('Deadline moved to Feb 1, 2099');
+    expect(entry).toHaveTextContent('by Jordan Reyes');
+    expect(JSON.parse(sent(fetch, DECISION_PATH)!.body as string)).toEqual({
+      decision: 'approved',
+    });
+    expect(deadlineShown()).toBe('Feb 1, 2099');
+    expect(screen.queryByText('Overdue')).toBeNull();
+    expect(
+      screen.queryByText('Extension requested', {selector: 'span'}),
+    ).toBeNull();
+    expect(
+      screen.queryByRole('button', {name: 'Approve extension'}),
+    ).toBeNull();
+  });
+
+  it('denies with a comment; the deadline stays and the decision is in the timeline (AC 18.2)', async () => {
+    const fetch = openTicket(inspector, ticket('open', [pendingRequest]), {
+      [DECISION_PATH]: ticket('open', [
+        decided(pendingRequest, 'denied', 'Moving the chicken needs no parts.'),
+      ]),
+    });
+    fireEvent.change(await screen.findByLabelText('Comment'), {
+      target: {value: '  Moving the chicken needs no parts.  '},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Deny'}));
+
+    const entry = await screen.findByRole('group', {
+      name: 'Extension decision 1',
+    });
+    expect(entry).toHaveTextContent('Extension denied');
+    expect(entry).toHaveTextContent('Deadline stays Jan 10, 2099');
+    expect(entry).toHaveTextContent('Moving the chicken needs no parts.');
+    expect(JSON.parse(sent(fetch, DECISION_PATH)!.body as string)).toEqual({
+      decision: 'denied',
+      comment: 'Moving the chicken needs no parts.',
+    });
+    expect(deadlineShown()).toBe('Jan 10, 2099');
+  });
+
+  it('shows the owner the denial and the comment, and lets them ask again (AC 18.2)', async () => {
+    openTicket(
+      owner,
+      ticket('open', [
+        decided(pendingRequest, 'denied', 'Moving the chicken needs no parts.'),
+      ]),
+    );
+    const denial = await screen.findByRole('alert');
+    expect(denial).toHaveTextContent(
+      'Extension to Feb 1, 2099 denied by Jordan Reyes',
+    );
+    expect(denial).toHaveTextContent('Moving the chicken needs no parts.');
+    expect(
+      screen.getByRole('group', {name: 'Extension decision 1'}),
+    ).toHaveTextContent('Moving the chicken needs no parts.');
+    expect(
+      screen.getByRole('button', {name: 'Request a later deadline'}),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the owner an approved extension in the timeline, with no denial', async () => {
+    openTicket(
+      owner,
+      ticket('open', [decided(pendingRequest, 'approved', null)], '2099-02-01'),
+    );
+    expect(
+      await screen.findByRole('group', {name: 'Extension decision 1'}),
+    ).toHaveTextContent('Extension approved');
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it.each(['', '   '])(
+    'marks comment %j as required to deny and sends nothing (AC 18.3)',
+    async (comment) => {
+      const fetch = openTicket(inspector, ticket('open', [pendingRequest]));
+      fireEvent.change(await screen.findByLabelText('Comment'), {
+        target: {value: comment},
+      });
+      fireEvent.click(screen.getByRole('button', {name: 'Deny'}));
+      expect(await screen.findByText(DENY_COMMENT)).toBeInTheDocument();
+      expect(screen.getByLabelText('Comment')).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      );
+      await waitFor(() => expect(sent(fetch, DECISION_PATH)).toBeUndefined());
+    },
+  );
+
+  it("marks the comment with the server's message if it refuses a denial (AC 18.3)", async () => {
+    openTicket(inspector, ticket('open', [pendingRequest]), {
+      [DECISION_PATH]: Response.json(
+        {error: DENY_COMMENT, fields: {comment: DENY_COMMENT}},
+        {status: 400},
+      ),
+    });
+    fireEvent.change(await screen.findByLabelText('Comment'), {
+      target: {value: 'No'},
+    });
+    fireEvent.click(screen.getByRole('button', {name: 'Deny'}));
+    expect(await screen.findByText(DENY_COMMENT)).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('offers no decision when no request is waiting (AC 18.4)', async () => {
+    openTicket(
+      inspector,
+      ticket('open', [decided(pendingRequest, 'denied', 'No.')]),
+    );
+    await screen.findByRole('group', {name: 'Extension decision 1'});
+    expect(
+      screen.queryByRole('button', {name: 'Approve extension'}),
+    ).toBeNull();
+    expect(screen.queryByRole('button', {name: 'Deny'})).toBeNull();
+  });
+
+  it('shows "No extension request is waiting" if the server refuses (AC 18.4)', async () => {
+    openTicket(inspector, ticket('open', [pendingRequest]), {
+      [DECISION_PATH]: Response.json(
+        {error: 'No extension request is waiting'},
+        {status: 409},
+      ),
+    });
+    fireEvent.click(
+      await screen.findByRole('button', {name: 'Approve extension'}),
+    );
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'No extension request is waiting',
+    );
+  });
+
+  it('offers a store owner no way to approve or deny (AC 18.5)', async () => {
+    openTicket(owner, ticket('open', [pendingRequest]));
+    await screen.findByRole('alert');
+    expect(
+      screen.queryByRole('button', {name: 'Approve extension'}),
+    ).toBeNull();
+    expect(screen.queryByRole('button', {name: 'Deny'})).toBeNull();
+  });
+});

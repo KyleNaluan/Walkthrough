@@ -13,7 +13,9 @@ import {
   IconAlertCircle,
   IconCalendarPlus,
   IconCalendarTime,
+  IconCheck,
   IconHourglass,
+  IconX,
 } from '@tabler/icons-react';
 import {useState} from 'react';
 import {ApiError, apiPost} from '../../api';
@@ -21,13 +23,14 @@ import {useAuth} from '../../auth/useAuth';
 import {pendingExtension} from '../../lib/extensions';
 import {formatDate} from '../../lib/format';
 import {parseDate, today} from '../../lib/today';
-import type {TicketDetail} from '../../types';
+import type {ExtensionRequest, TicketDetail} from '../../types';
 import {Section} from '../ui/Section';
 
 const NOT_LATER = 'New deadline must be after the current one';
 const IN_PAST = 'New deadline cannot be in the past';
 const DATE_REQUIRED = 'New deadline is required';
 const REASON_REQUIRED = 'Reason is required';
+const DENY_COMMENT = 'A comment is required to deny a request';
 
 /** Shown next to the status while a request waits for an inspector. */
 export function ExtensionBadge() {
@@ -148,6 +151,7 @@ function OwnerExtension({
 }) {
   const [asking, setAsking] = useState(false);
   const pending = pendingExtension(ticket);
+  const latest = ticket.extensionRequests.at(-1);
 
   if (pending) {
     return (
@@ -169,6 +173,17 @@ function OwnerExtension({
 
   return (
     <Section title="Deadline extension">
+      {/* AC 18.2: the owner sees why their last request was denied. */}
+      {latest?.status === 'denied' && latest.decision && (
+        <Alert
+          color="red"
+          variant="light"
+          icon={<IconX size={18} />}
+          title={`Extension to ${formatDate(latest.requestedDeadline)} denied by ${latest.decision.deciderName}`}
+        >
+          {latest.decision.comment}
+        </Alert>
+      )}
       {asking ? (
         <RequestExtensionForm
           ticket={ticket}
@@ -198,9 +213,140 @@ function OwnerExtension({
 }
 
 /**
+ * The inspector's decision on a pending request (story 18): approve it, which
+ * moves the deadline, or deny it with a comment. Denying with a blank comment
+ * marks the field and sends nothing (AC 18.3).
+ */
+function DecideExtensionForm({
+  ticket,
+  request,
+  onDecided,
+}: {
+  ticket: TicketDetail;
+  request: ExtensionRequest;
+  onDecided: (ticket: TicketDetail) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<'approved' | 'denied' | null>(null);
+  const form = useForm({
+    initialValues: {comment: ''},
+    onValuesChange: () => setError(null),
+  });
+
+  async function decide(decision: 'approved' | 'denied') {
+    const comment = form.values.comment.trim();
+    if (decision === 'denied' && !comment) {
+      form.setFieldError('comment', DENY_COMMENT);
+      return;
+    }
+    form.clearErrors();
+    setBusy(decision);
+    setError(null);
+    try {
+      onDecided(
+        await apiPost<TicketDetail>(
+          `/api/tickets/${ticket.id}/extension-requests/${request.id}/decision`,
+          {decision, ...(comment && {comment})},
+        ),
+      );
+    } catch (err) {
+      if (err instanceof ApiError && err.fields?.comment) {
+        form.setFieldError('comment', err.fields.comment);
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Could not save');
+      }
+      setBusy(null);
+    }
+  }
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        void decide('approved');
+      }}
+      noValidate
+    >
+      <Stack>
+        <div>
+          <Text fw={600}>
+            {request.requesterName} asks to move the deadline from{' '}
+            {formatDate(request.previousDeadline)} to{' '}
+            {formatDate(request.requestedDeadline)}.
+          </Text>
+          <Text mt={4}>{request.reason}</Text>
+        </div>
+        <Textarea
+          label="Comment"
+          description="Required to deny. Tell the owner why."
+          autosize
+          minRows={2}
+          disabled={busy !== null}
+          {...form.getInputProps('comment')}
+        />
+        {error && (
+          <Alert
+            color="red"
+            variant="light"
+            icon={<IconAlertCircle size={18} />}
+          >
+            {error}
+          </Alert>
+        )}
+        {/* Side by side when there is room; stacked on narrow phones. */}
+        <SimpleGrid cols={{base: 1, xs: 2}} spacing="sm">
+          <Button
+            type="submit"
+            color="green"
+            leftSection={<IconCheck size={18} />}
+            loading={busy === 'approved'}
+            disabled={busy !== null}
+          >
+            Approve extension
+          </Button>
+          <Button
+            color="red"
+            variant="outline"
+            leftSection={<IconX size={18} />}
+            loading={busy === 'denied'}
+            disabled={busy !== null}
+            onClick={() => void decide('denied')}
+          >
+            Deny
+          </Button>
+        </SimpleGrid>
+      </Stack>
+    </form>
+  );
+}
+
+/** The inspector's side: the pending request to decide, if any (story 18). */
+function InspectorExtension({
+  ticket,
+  onChange,
+}: {
+  ticket: TicketDetail;
+  onChange: (ticket: TicketDetail) => void;
+}) {
+  const pending = pendingExtension(ticket);
+  if (!pending) return null;
+  return (
+    <Section title="Extension request">
+      {/* A new key starts the form fresh for another request. */}
+      <DecideExtensionForm
+        key={pending.id}
+        ticket={ticket}
+        request={pending}
+        onDecided={onChange}
+      />
+    </Section>
+  );
+}
+
+/**
  * Deadline extensions on the ticket page. Store owners ask for a later
- * deadline (story 17). The server checks the role, the store and the
- * ticket for each step.
+ * deadline (story 17); inspectors approve or deny it (story 18). The server
+ * checks the role, the store and the ticket for each step.
  */
 export function DeadlineExtension({
   ticket,
@@ -210,6 +356,9 @@ export function DeadlineExtension({
   onChange: (ticket: TicketDetail) => void;
 }) {
   const {user} = useAuth();
+  if (user?.role === 'inspector') {
+    return <InspectorExtension ticket={ticket} onChange={onChange} />;
+  }
   if (user?.role !== 'store_owner') return null;
   return <OwnerExtension ticket={ticket} onChange={onChange} />;
 }

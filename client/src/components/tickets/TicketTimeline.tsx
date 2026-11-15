@@ -154,16 +154,55 @@ function ExtensionAsked({request}: {request: ExtensionRequest}) {
   );
 }
 
+/** What the inspector decided (story 18). */
+function ExtensionDecided({request}: {request: ExtensionRequest}) {
+  const {decision} = request;
+  if (!decision) return null;
+  return (
+    <>
+      <Text fz="sm">
+        {request.status === 'approved' ? 'Deadline moved to' : 'Deadline stays'}{' '}
+        <Text span ff="monospace" fz="sm" fw={600}>
+          {formatDate(
+            request.status === 'approved'
+              ? request.requestedDeadline
+              : request.previousDeadline,
+          )}
+        </Text>{' '}
+        · by {decision.deciderName}
+      </Text>
+      {decision.comment && <Text>{decision.comment}</Text>}
+    </>
+  );
+}
+
+/** Each request, and each decision once made (AC 17.1, 18.1, 18.2). */
 function extensionEntries(requests: ExtensionRequest[]): Entry[] {
-  return requests.map((request, index) => ({
-    key: `extension-${request.id}`,
-    at: microseconds(request.requestedAt),
-    label: `Extension request ${index + 1}`,
-    title: 'Extension requested',
-    date: formatDateTime(request.requestedAt),
-    color: 'yellow',
-    body: <ExtensionAsked request={request} />,
-  }));
+  return requests.flatMap((request, index) => {
+    const asked: Entry = {
+      key: `extension-${request.id}`,
+      at: microseconds(request.requestedAt),
+      label: `Extension request ${index + 1}`,
+      title: 'Extension requested',
+      date: formatDateTime(request.requestedAt),
+      color: 'yellow',
+      body: <ExtensionAsked request={request} />,
+    };
+    if (!request.decision) return [asked];
+    const approved = request.status === 'approved';
+    return [
+      asked,
+      {
+        key: `extension-decision-${request.id}`,
+        at: microseconds(request.decision.decidedAt),
+        label: `Extension decision ${index + 1}`,
+        title: approved ? 'Extension approved' : 'Extension denied',
+        date: formatDateTime(request.decision.decidedAt),
+        color: approved ? 'green' : 'red',
+        body: <ExtensionDecided request={request} />,
+      },
+    ];
+  });
 }
 
 /**
