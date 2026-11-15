@@ -37,12 +37,43 @@ export const theme = createTheme({
   components: {
     Button: {defaultProps: {size: 'md'}},
     TextInput: {defaultProps: {size: 'md'}},
-    PasswordInput: {defaultProps: {size: 'md'}},
     Textarea: {defaultProps: {size: 'md'}},
     Select: {defaultProps: {size: 'md'}},
     FileInput: {defaultProps: {size: 'md'}},
     DateInput: {defaultProps: {size: 'md'}},
+    NativeSelect: {defaultProps: {size: 'md'}},
     RadioGroup: {defaultProps: {size: 'md'}},
+    // Phone tap targets are at least 42px tall too (story 21, AC 21.2).
+    PasswordInput: {
+      defaultProps: {size: 'md', rightSectionWidth: 42},
+      // The show/hide button's size comes from Mantine's CSS, not `size`.
+      styles: {
+        visibilityToggle: {
+          width: 42,
+          height: 42,
+          minWidth: 42,
+          minHeight: 42,
+        },
+      },
+    },
+    SegmentedControl: {
+      styles: {
+        label: {
+          minHeight: 42,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        },
+      },
+    },
+    // A radio's label is its tap target, so the label row is 42px tall.
+    Radio: {
+      defaultProps: {size: 'md'},
+      styles: {
+        body: {alignItems: 'center'},
+        label: {minHeight: 42, display: 'flex', alignItems: 'center'},
+      },
+    },
     // Cards stay white on the grey page.
     Paper: {defaultProps: {withBorder: true, bg: 'white'}},
     Card: {defaultProps: {withBorder: true, bg: 'white'}},
