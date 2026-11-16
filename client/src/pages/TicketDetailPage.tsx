@@ -174,7 +174,8 @@ function Ticket({
  * One ticket: the finding, a timeline of its history (story 13), and the
  * next step for whoever is looking. Owners submit fixes (story 9) and ask for
  * a later deadline (story 17); inspectors approve (story 10) or request
- * changes (story 11). The server checks access and status for each step.
+ * changes (story 11) and decide extension requests (story 18). The server
+ * checks access and status for each step.
  */
 export function TicketDetailPage() {
   const {ticketId} = useParams();
