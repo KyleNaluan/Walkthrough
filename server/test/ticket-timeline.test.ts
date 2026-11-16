@@ -31,9 +31,10 @@ describe('getTicket query (story 13)', () => {
     inspection: {store: {store_id: 1, name: 'Main St Diner'}},
     fix_submission: [],
     reinspection: [],
+    extension_request: [],
   };
 
-  it('asks for the fixes with their reviews and each re-inspection with its visit (AC 13.1)', async () => {
+  it('asks for the fixes with their reviews, each re-inspection with its visit and each extension request (AC 13.1, 17.1)', async () => {
     const calls = fakeQuery(dbRow);
     await ticketsDb.getTicket(4);
     const select = calls.find(([name]) => name === 'select')![1] as string;
@@ -45,7 +46,15 @@ describe('getTicket query (story 13)', () => {
         'reviewer:app_user(first_name,last_name)),' +
         'reinspection(reinspection_id,scheduled_for,outcome,created_at,' +
         'visit:inspection(inspection_id,started_at,' +
-        'inspector:app_user(first_name,last_name)))',
+        'inspector:app_user(first_name,last_name))),' +
+        'extension_request(extension_request_id,previous_deadline,' +
+        'requested_deadline,reason,requested_at,status,decision_comment,' +
+        'decided_at,' +
+        // Two links to app_user, so each embed names its foreign key.
+        'requester:app_user!extension_request_requested_by_fkey(' +
+        'first_name,last_name),' +
+        'decider:app_user!extension_request_decided_by_fkey(' +
+        'first_name,last_name))',
     );
   });
 
@@ -105,6 +114,102 @@ describe('getTicket query (story 13)', () => {
       recordedAt: '2026-09-30T15:00:00+00:00',
       fixes: [],
       reinspections: [],
+      extensionRequests: [],
     });
+  });
+
+  it('gives each extension request, oldest first, with its decision once made (AC 17.1, 18.1)', async () => {
+    fakeQuery({
+      ...dbRow,
+      // PostgREST does not order embedded rows.
+      extension_request: [
+        {
+          extension_request_id: 9,
+          previous_deadline: '2026-10-27',
+          requested_deadline: '2026-11-03',
+          reason: 'Waiting on a plumber',
+          requested_at: '2026-10-21T15:00:00+00:00',
+          status: 'pending',
+          decision_comment: null,
+          decided_at: null,
+          requester: {first_name: 'Olivia', last_name: 'Owner'},
+          decider: null,
+        },
+        {
+          extension_request_id: 8,
+          previous_deadline: '2026-10-20',
+          requested_deadline: '2026-10-27',
+          reason: 'Parts are on back order',
+          requested_at: '2026-10-10T15:00:00+00:00',
+          status: 'approved',
+          decision_comment: null,
+          decided_at: '2026-10-11T15:00:00+00:00',
+          requester: {first_name: 'Olivia', last_name: 'Owner'},
+          decider: {first_name: 'Ina', last_name: 'Spector'},
+        },
+      ],
+    });
+    const ticket = await ticketsDb.getTicket(4);
+    expect(ticket!.extensionRequests).toEqual([
+      {
+        id: 8,
+        previousDeadline: '2026-10-20',
+        requestedDeadline: '2026-10-27',
+        reason: 'Parts are on back order',
+        requestedAt: '2026-10-10T15:00:00+00:00',
+        requesterName: 'Olivia Owner',
+        status: 'approved',
+        decision: {
+          comment: null,
+          decidedAt: '2026-10-11T15:00:00+00:00',
+          deciderName: 'Ina Spector',
+        },
+      },
+      {
+        id: 9,
+        previousDeadline: '2026-10-27',
+        requestedDeadline: '2026-11-03',
+        reason: 'Waiting on a plumber',
+        requestedAt: '2026-10-21T15:00:00+00:00',
+        requesterName: 'Olivia Owner',
+        status: 'pending',
+        decision: null,
+      },
+    ]);
+  });
+
+  it('gives a request closed by resolving the ticket no decision (AC 17.5)', async () => {
+    fakeQuery({
+      ...dbRow,
+      status: 'resolved',
+      extension_request: [
+        {
+          extension_request_id: 9,
+          previous_deadline: '2026-10-27',
+          requested_deadline: '2026-11-03',
+          reason: 'Waiting on a plumber',
+          requested_at: '2026-10-21T15:00:00+00:00',
+          // 007 closes a pending request when its ticket is resolved.
+          status: 'closed',
+          decision_comment: null,
+          decided_at: '2026-10-22T15:00:00+00:00',
+          requester: {first_name: 'Olivia', last_name: 'Owner'},
+          decider: null,
+        },
+      ],
+    });
+    const ticket = await ticketsDb.getTicket(4);
+    expect(ticket!.extensionRequests).toEqual([
+      {
+        id: 9,
+        previousDeadline: '2026-10-27',
+        requestedDeadline: '2026-11-03',
+        reason: 'Waiting on a plumber',
+        requestedAt: '2026-10-21T15:00:00+00:00',
+        requesterName: 'Olivia Owner',
+        status: 'closed',
+        decision: null,
+      },
+    ]);
   });
 });

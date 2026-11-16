@@ -158,6 +158,8 @@ function toRecord(t: FakeTicket): TicketRecord {
               inspectorName: name(inspections.get(inspectionId)!.inspectorId),
             },
     })),
+    // Extension requests are tested in extension-requests.test.ts.
+    extensionRequests: [],
   };
 }
 

@@ -1,5 +1,7 @@
 import {getSupabaseAdmin} from '../lib/supabase.js';
 import type {
+  ExtensionRequest,
+  ExtensionStatus,
   FixSubmission,
   Reinspection,
   ReinspectionOutcome,
@@ -161,6 +163,24 @@ interface ReinspectionRow {
   } | null;
 }
 
+interface PersonRow {
+  first_name: string;
+  last_name: string;
+}
+
+interface ExtensionRequestRow {
+  extension_request_id: number;
+  previous_deadline: string;
+  requested_deadline: string;
+  reason: string;
+  requested_at: string;
+  status: ExtensionStatus;
+  decision_comment: string | null;
+  decided_at: string | null;
+  requester: PersonRow;
+  decider: PersonRow | null;
+}
+
 interface TicketDetailRow {
   ticket_id: number;
   description: string;
@@ -172,6 +192,7 @@ interface TicketDetailRow {
   inspection: {store: {store_id: number; name: string}};
   fix_submission: FixRow[];
   reinspection: ReinspectionRow[];
+  extension_request: ExtensionRequestRow[];
 }
 
 const ticketDetailColumns = `
@@ -189,6 +210,14 @@ const ticketDetailColumns = `
       inspection_id, started_at,
       inspector:app_user(first_name, last_name)
     )
+  ),
+  extension_request(
+    extension_request_id, previous_deadline, requested_deadline, reason,
+    requested_at, status, decision_comment, decided_at,
+    requester:app_user!extension_request_requested_by_fkey(
+      first_name, last_name
+    ),
+    decider:app_user!extension_request_decided_by_fkey(first_name, last_name)
   )`;
 
 function toFix(row: FixRow): FixSubmission {
@@ -224,9 +253,38 @@ function toReinspection(row: ReinspectionRow): Reinspection {
   };
 }
 
+function fullName(person: PersonRow): string {
+  return `${person.first_name} ${person.last_name}`;
+}
+
+function toExtensionRequest(row: ExtensionRequestRow): ExtensionRequest {
+  // decision_is_complete in 007_extension_requests.sql: an approved or
+  // denied request has a decider and a time. A closed one has no decider.
+  const decided =
+    (row.status === 'approved' || row.status === 'denied') &&
+    row.decided_at &&
+    row.decider;
+  return {
+    id: row.extension_request_id,
+    previousDeadline: row.previous_deadline,
+    requestedDeadline: row.requested_deadline,
+    reason: row.reason,
+    requestedAt: row.requested_at,
+    requesterName: fullName(row.requester),
+    status: row.status,
+    decision: decided
+      ? {
+          comment: row.decision_comment,
+          decidedAt: row.decided_at!,
+          deciderName: fullName(row.decider!),
+        }
+      : null,
+  };
+}
+
 /**
- * One ticket with its store, fix rounds and re-inspections (oldest first), or
- * null.
+ * One ticket with its store, fix rounds, re-inspections and extension
+ * requests (each oldest first), or null.
  */
 export async function getTicket(id: number): Promise<TicketRecord | null> {
   const {data, error} = await getSupabaseAdmin()
@@ -254,6 +312,9 @@ export async function getTicket(id: number): Promise<TicketRecord | null> {
     reinspections: [...data.reinspection]
       .sort((a, b) => a.reinspection_id - b.reinspection_id)
       .map(toReinspection),
+    extensionRequests: [...data.extension_request]
+      .sort((a, b) => a.extension_request_id - b.extension_request_id)
+      .map(toExtensionRequest),
   };
 }
 
@@ -363,6 +424,51 @@ export async function recordReinspection(
     p_reinspection_id: reinspectionId,
     p_inspection_id: inspectionId,
     p_outcome: outcome,
+  });
+  if (error) throw error;
+}
+
+// Story 17: request a deadline extension ---------------------------------------
+
+/**
+ * Saves a pending request for a later deadline (request_extension in
+ * 007_extension_requests.sql), which checks the ticket again under a lock.
+ * A refusal is a P0001 error.
+ */
+export async function requestExtension(
+  ticketId: number,
+  ownerId: string,
+  deadline: string,
+  reason: string,
+): Promise<number> {
+  const {data, error} = await getSupabaseAdmin().rpc('request_extension', {
+    p_ticket_id: ticketId,
+    p_owner_id: ownerId,
+    p_deadline: deadline,
+    p_reason: reason,
+  });
+  if (error) throw error;
+  return data as number;
+}
+
+// Story 18: decide an extension request ----------------------------------------
+
+/**
+ * Approves a pending request, which moves the ticket's deadline to the
+ * requested date, or denies it with a comment, in one step (decide_extension
+ * in 007_extension_requests.sql). A refusal is a P0001 error.
+ */
+export async function decideExtension(
+  requestId: number,
+  inspectorId: string,
+  decision: 'approved' | 'denied',
+  comment: string | null,
+): Promise<void> {
+  const {error} = await getSupabaseAdmin().rpc('decide_extension', {
+    p_request_id: requestId,
+    p_inspector_id: inspectorId,
+    p_decision: decision,
+    p_comment: comment,
   });
   if (error) throw error;
 }

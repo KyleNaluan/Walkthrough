@@ -4,6 +4,7 @@ import {apiGet} from '../../api';
 import {formatDate, formatDateTime} from '../../lib/format';
 import {recordNumber} from '../../status';
 import type {
+  ExtensionRequest,
   FixReview,
   FixSubmission,
   Reinspection,
@@ -128,10 +129,91 @@ function reinspectionEntry(reinspection: Reinspection, number: number): Entry {
   };
 }
 
+/** What the owner asked for and why (story 17). */
+function ExtensionAsked({request}: {request: ExtensionRequest}) {
+  return (
+    <>
+      <Text fz="sm">
+        From{' '}
+        <Text span ff="monospace" fz="sm">
+          {formatDate(request.previousDeadline)}
+        </Text>{' '}
+        to{' '}
+        <Text span ff="monospace" fz="sm" fw={600}>
+          {formatDate(request.requestedDeadline)}
+        </Text>{' '}
+        · by {request.requesterName}
+      </Text>
+      <Text>{request.reason}</Text>
+      {request.status === 'pending' && (
+        <Text fz="sm" c="dimmed">
+          Waiting for a decision
+        </Text>
+      )}
+      {request.status === 'closed' && (
+        <Text fz="sm" c="dimmed">
+          Closed without a decision when the ticket was resolved
+        </Text>
+      )}
+    </>
+  );
+}
+
+/** What the inspector decided (story 18). */
+function ExtensionDecided({request}: {request: ExtensionRequest}) {
+  const {decision} = request;
+  if (!decision) return null;
+  return (
+    <>
+      <Text fz="sm">
+        {request.status === 'approved' ? 'Deadline moved to' : 'Deadline stays'}{' '}
+        <Text span ff="monospace" fz="sm" fw={600}>
+          {formatDate(
+            request.status === 'approved'
+              ? request.requestedDeadline
+              : request.previousDeadline,
+          )}
+        </Text>{' '}
+        · by {decision.deciderName}
+      </Text>
+      {decision.comment && <Text>{decision.comment}</Text>}
+    </>
+  );
+}
+
+/** Each request, and each decision once made (AC 17.1, 18.1, 18.2). */
+function extensionEntries(requests: ExtensionRequest[]): Entry[] {
+  return requests.flatMap((request, index) => {
+    const asked: Entry = {
+      key: `extension-${request.id}`,
+      at: microseconds(request.requestedAt),
+      label: `Extension request ${index + 1}`,
+      title: 'Extension requested',
+      date: formatDateTime(request.requestedAt),
+      color: 'yellow',
+      body: <ExtensionAsked request={request} />,
+    };
+    if (!request.decision) return [asked];
+    const approved = request.status === 'approved';
+    return [
+      asked,
+      {
+        key: `extension-decision-${request.id}`,
+        at: microseconds(request.decision.decidedAt),
+        label: `Extension decision ${index + 1}`,
+        title: approved ? 'Extension approved' : 'Extension denied',
+        date: formatDateTime(request.decision.decidedAt),
+        color: approved ? 'green' : 'red',
+        body: <ExtensionDecided request={request} />,
+      },
+    ];
+  });
+}
+
 /**
- * The finding, each fix round with its review, and each re-inspection,
- * oldest first (AC 13.1). A review always comes before the next fix or
- * re-inspection result, so it stays with its fix.
+ * The finding, each fix round with its review, each re-inspection and each
+ * extension request, oldest first (AC 13.1, 17.1). A review always comes
+ * before the next fix or re-inspection result, so it stays with its fix.
  */
 function entries(ticket: TicketDetail): Entry[] {
   return [
@@ -153,6 +235,7 @@ function entries(ticket: TicketDetail): Entry[] {
     ...ticket.reinspections.map((reinspection, index) =>
       reinspectionEntry(reinspection, index + 1),
     ),
+    ...extensionEntries(ticket.extensionRequests),
   ].sort((a, b) => a.at - b.at);
 }
 

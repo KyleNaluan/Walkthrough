@@ -21,14 +21,16 @@ import {
   idField,
   idParam,
   isOverdue,
+  nonBlank,
   notInPast,
   parseBody,
   parseParams,
+  today,
 } from '../lib/validate.js';
 import {requireRole, requireUser} from '../middleware/auth.js';
 
 // Stories 8-12 (ticket list, submit a fix, approve, request changes,
-// re-inspection).
+// re-inspection) and 17 (deadline extension).
 export const ticketsRouter = Router();
 
 // Story 8: the ticket list ----------------------------------------------------
@@ -254,5 +256,45 @@ ticketsRouter.post(
       outcome,
     );
     res.json(await reloadTicket(ticketId));
+  },
+);
+
+// Story 17: request a deadline extension --------------------------------------
+
+const ALREADY_RESOLVED = 'This ticket is already resolved';
+const ALREADY_WAITING = 'An extension request is already waiting';
+const NOT_LATER = 'New deadline must be after the current one';
+
+/** A later deadline than `current`, not in the past, and a reason. */
+function extensionBody(current: string) {
+  return z.object({
+    deadline: z.iso
+      .date('New deadline must be a date')
+      .refine((date) => date > current, NOT_LATER) // AC 17.2
+      .refine((date) => date >= today(), 'New deadline cannot be in the past'),
+    reason: nonBlank('Reason'), // AC 17.3
+  });
+}
+
+ticketsRouter.post(
+  '/tickets/:ticketId/extension-requests',
+  requireUser,
+  requireRole('store_owner'), // AC 17.6: inspectors
+  async (req, res) => {
+    const {ticketId} = parseParams(ticketParams, req);
+    // Access first, so another store's owner learns nothing but "Access
+    // denied" (AC 17.6).
+    const ticket = await loadTicket(req.user!, ticketId);
+    if (ticket.status === 'resolved') {
+      throw new HttpError(409, ALREADY_RESOLVED); // AC 17.5
+    }
+    if (ticket.extensionRequests.some((r) => r.status === 'pending')) {
+      throw new HttpError(409, ALREADY_WAITING); // AC 17.4
+    }
+    const {deadline, reason} = parseBody(extensionBody(ticket.deadline), req);
+    // request_extension checks all of this again under a lock, in case the
+    // ticket changed in between (AC 17.1).
+    await tickets.requestExtension(ticketId, req.user!.id, deadline, reason);
+    res.status(201).json(await reloadTicket(ticketId));
   },
 );
