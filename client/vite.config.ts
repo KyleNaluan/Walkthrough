@@ -11,6 +11,8 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
+    // Fixture timestamps are checked as Chicago dates, whatever the machine's zone.
+    env: {TZ: 'America/Chicago'},
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
   },
