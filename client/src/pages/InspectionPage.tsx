@@ -57,8 +57,8 @@ function FindingRow({ticket}: {ticket: Ticket}) {
         component="button"
         type="button"
         fz="sm"
-        mt="xs"
-        display="block"
+        display="inline-flex"
+        style={{minHeight: 42, alignItems: 'center'}}
         onClick={() => setOpen((shown) => !shown)}
       >
         <Group gap={4} component="span">
